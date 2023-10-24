@@ -2,7 +2,7 @@ from setuptools import setup
 from tomllib import load
 
 
-with open("pyproject.toml") as f:
+with open("pyproject.toml", "rb") as f:
     project = load(f)["project"]
 
     setup(
