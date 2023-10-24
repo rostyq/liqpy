@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "liqpy"
+version = "0.1.0"
+authors = [{ name = "Rostyslav Bohomaz", email = "rostyslav.db@gmail.com" }]
+description = "Unofficial Python libary for LiqPay API"
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["liqpay", "api"]
+license = { text = "MIT License" }
+classifiers = ["Programming Language :: Python :: 3"]
+dependencies = ["requests", "secret-type"]
+urls = { Homepage = "https://github.com/rostyq/liqpy" }
