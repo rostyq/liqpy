@@ -3,7 +3,7 @@ from base64 import b64encode, b64decode
 from json import dumps, loads
 from os import environ
 
-from requests import Session
+from requests import Session, Response
 from secret_type import secret, Secret
 
 from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
@@ -87,16 +87,23 @@ class LiqPay:
         """Verify if the signature is valid. Raise an exception if not."""
         assert self.is_valid(data, signature), "Invalid signature"
 
-    def _request(self, /, data: str, signature: str) -> dict:
+    def _request(self, /, data: str, signature: str) -> "Response":
         data = self._to_dict(data, signature)
         response = self.session.post(REQUEST_URL, data=data)
         response.raise_for_status()
-        return response.json()
+        return response
+
+    def _checkout(self, /, data: str, signature: str, *, redirect: bool = False) -> "Response":
+        data = self._to_dict(data, signature)
+        response = self.session.post(CHECKOUT_URL, data=data, allow_redirects=redirect)
+        response.raise_for_status()
+        return response
 
     def request(self, /, **kwargs) -> dict:
         """Make a Server-Server request to LiqPay API."""
         data, signature = self.encode(**kwargs)
-        data: dict[str] = self._request(data, signature)
+        response = self._request(data, signature)
+        data: dict[str] = response.json()
 
         action = kwargs.get("action")
         result, status = data.pop("result"), data.get("status")
@@ -104,23 +111,20 @@ class LiqPay:
         if is_exception(action, result, status):
             code = data.pop("err_code", "unknown")
             description = data.pop("err_description", "unknown error")
-            raise LiqPayException(code, description, **data)
+            raise LiqPayException(code, description, response=response, **data)
 
         return data
 
     def checkout(self, /, **kwargs) -> str:
         """Make a Client-Server checkout request to LiqPay API."""
-        data = self._to_dict(*self.encode(**kwargs))
-
-        response = self.session.post(CHECKOUT_URL, data=data, allow_redirects=False)
-        response.raise_for_status()
+        response = self._checkout(*self.encode(**kwargs), redirect=False)
 
         next = response.next
 
         if next is not None:
             return next.url
         else:
-            raise LiqPayException("unknown", "unknown error")
+            raise LiqPayException("unknown", "unknown error", response=response)
 
     def status(self, order_id: str, /) -> dict:
         """Get the status of a payment."""
