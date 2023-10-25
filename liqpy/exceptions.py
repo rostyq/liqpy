@@ -1,5 +1,8 @@
-from typing import Literal
+from typing import Literal, TYPE_CHECKING, Optional
 from copy import deepcopy
+
+if TYPE_CHECKING:
+    from requests import Response
 
 
 def is_exception(
@@ -15,9 +18,11 @@ def is_exception(
 
 class LiqPayException(Exception):
     code: str
-    data: dict
+    details: dict
+    response: Optional["Response"] = None
 
-    def __init__(self, code: str, description: str, /, **kwargs):
+    def __init__(self, code: str, description: str, /, response: Optional["Response"] = None, **kwargs):
         super().__init__(description)
         self.code = code
-        self.data = deepcopy(kwargs)
+        self.response = response
+        self.details = deepcopy(kwargs)
