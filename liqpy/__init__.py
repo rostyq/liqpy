@@ -1,13 +1,13 @@
 from hashlib import sha1
-from base64 import b64encode
-from json import dumps
+from base64 import b64encode, b64decode
+from json import dumps, loads
 from os import environ
 
 from requests import Session
 from secret_type import secret, Secret
 
 from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
-from .exceptions import LiqPayException
+from .exceptions import LiqPayException, is_exception
 
 
 __all__ = ["LiqPay"]
@@ -61,16 +61,19 @@ class LiqPay:
 
     def _encode_data(self, data: str, /) -> str:
         return b64encode(data.encode()).decode()
+    
+    def _decode_data(self, data: str, /) -> str:
+        return b64decode(data.encode(), validate=True)
 
-    def _prepare_params(self, /, **kwargs) -> dict:
-        return kwargs | {"public_key": self.public_key, "version": VERSION}
+    def _prepare_params(self, params: dict, /) -> dict:
+        return params | {"public_key": self.public_key, "version": VERSION}
 
     def _to_dict(self, /, data: str, signature: str) -> dict:
         return {"data": data, "signature": signature}
 
     def encode(self, /, **kwargs) -> tuple[str, str]:
         """Encode parameters into data and signature strings."""
-        payload = dumps(self._prepare_params(**kwargs))
+        payload = dumps(self._prepare_params(kwargs))
         data = self._encode_data(payload)
         signature = self._encode_signature(data)
 
@@ -80,7 +83,7 @@ class LiqPay:
         """Check if the signature is valid."""
         return self._encode_signature(data) == signature
 
-    def verify(self, data: str, signature: str):
+    def verify(self, /, data: str, signature: str):
         """Verify if the signature is valid. Raise an exception if not."""
         assert self.is_valid(data, signature), "Invalid signature"
 
@@ -98,11 +101,10 @@ class LiqPay:
         action = kwargs.get("action")
         result, status = data.pop("result"), data.get("status")
 
-        if result == "error" or status in ["error", "failure"]:
-            if action != "status":
-                code = data.pop("err_code", "unknown")
-                description = data.pop("err_description", "unknown error")
-                raise LiqPayException(code, description, **data)
+        if is_exception(action, result, status):
+            code = data.pop("err_code", "unknown")
+            description = data.pop("err_description", "unknown error")
+            raise LiqPayException(code, description, **data)
 
         return data
 
@@ -123,3 +125,8 @@ class LiqPay:
     def status(self, order_id: str, /) -> dict:
         """Get the status of a payment."""
         return self.request(action="status", order_id=order_id)
+
+    def callback(self, data: str, signature: str) -> dict:
+        """Verify and decode the callback data."""
+        self.verify(data, signature)
+        return loads(self._decode_data(data))
