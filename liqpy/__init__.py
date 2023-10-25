@@ -6,7 +6,7 @@ from os import environ
 from requests import Session
 from secret_type import secret, Secret
 
-from .constants import VERSION, REQUEST_URL
+from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
 from .exceptions import LiqPayException
 
 
@@ -41,9 +41,9 @@ class LiqPay:
         self.public_key = public_key
         self.private_key = secret(private_key)
         self.session = session
-    
+
     def __repr__(self):
-        return f"{self.__class__.__name__}(public_key=\"{self.public_key}\")"
+        return f'{self.__class__.__name__}(public_key="{self.public_key}")'
 
     def __enter__(self):
         return self
@@ -76,6 +76,14 @@ class LiqPay:
 
         return data, signature
 
+    def is_valid(self, /, data: str, signature: str) -> bool:
+        """Check if the signature is valid."""
+        return self._encode_signature(data) == signature
+
+    def verify(self, data: str, signature: str):
+        """Verify if the signature is valid. Raise an exception if not."""
+        assert self.is_valid(data, signature), "Invalid signature"
+
     def _request(self, /, data: str, signature: str) -> dict:
         data = self._to_dict(data, signature)
         response = self.session.post(REQUEST_URL, data=data)
@@ -97,3 +105,21 @@ class LiqPay:
                 raise LiqPayException(code, description, **data)
 
         return data
+
+    def checkout(self, /, **kwargs) -> str:
+        """Make a Client-Server checkout request to LiqPay API."""
+        data = self._to_dict(*self.encode(**kwargs))
+
+        response = self.session.post(CHECKOUT_URL, data=data, allow_redirects=False)
+        response.raise_for_status()
+
+        next = response.next
+
+        if next is not None:
+            return next.url
+        else:
+            raise LiqPayException("unknown", "unknown error")
+
+    def status(self, order_id: str, /) -> dict:
+        """Get the status of a payment."""
+        return self.request(action="status", order_id=order_id)
