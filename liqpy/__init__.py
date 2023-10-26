@@ -7,7 +7,7 @@ from requests import Session, Response
 from secret_type import secret, Secret
 
 from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
-from .exceptions import LiqPayException, is_exception
+from .exceptions import exception_factory, is_exception, LiqPayException
 
 
 __all__ = ["LiqPay"]
@@ -111,7 +111,7 @@ class LiqPay:
         if is_exception(action, result, status):
             code = data.pop("err_code", "unknown")
             description = data.pop("err_description", "unknown error")
-            raise LiqPayException(code, description, response=response, **data)
+            raise exception_factory(code, description, response=response, **data)
 
         return data
 
