@@ -192,33 +192,31 @@ class Client:
     def reports(
         self,
         /,
-        date_from: Optional[datetime | str] = None,
-        date_to: Optional[datetime | str] = None,
+        date_from: datetime | str,
+        date_to: datetime | str,
         format: Optional[Literal["json", "csv", "xml"]] = None,
-    ):
+    ) -> list[dict[str, str | int | float]] | str:
         """
         Get an archive of recieved payments.
 
         [Documentaion](https://www.liqpay.ua/en/documentation/api/information/reports/doc)
         """
-        kwargs = {}
-
         if isinstance(date_from, str):
             date_from = datetime.fromisoformat(date_from)
 
         if isinstance(date_to, str):
             date_to = datetime.fromisoformat(date_to)
 
-        if date_from is not None:
-            kwargs["date_from"] = to_milliseconds(date_from)
+        kwargs = {"date_from": to_milliseconds(date_from), "date_to": to_milliseconds(date_to)}
 
-        if date_to is not None:
-            kwargs["date_to"] = to_milliseconds(date_to)
-        
         if format is not None:
             kwargs["resp_format"] = format
-
-        return self.request("reports", **kwargs)["data"]
+        
+        match format:
+            case None | "json":
+                return self.request("reports", **kwargs)["data"]
+            case "csv" | "xml":
+                return self._post_request(*self.encode("reports", **kwargs)).content.decode()
     
     def data(self, /, order_id: str, info: str) -> dict:
         """
