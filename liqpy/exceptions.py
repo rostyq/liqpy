@@ -28,12 +28,12 @@ class LiqPayException(Exception):
         description: str,
         /,
         response: Optional["Response"] = None,
-        **kwargs,
+        details: Optional[dict] = None,
     ):
         super().__init__(description)
         self.code = code
         self.response = response
-        self.details = deepcopy(kwargs)
+        self.details = deepcopy(details)
 
 
 LiqpayAntiFraudErrcode = Literal["limit", "frod", "decline"]
@@ -186,9 +186,16 @@ def get_exception_class(code: str, /) -> type[LiqPayException]:
 
 
 def exception_factory(
-    code: str, description: str, *, response: Optional["Response"] = None, **kwargs
+    code: str,
+    description: str,
+    *,
+    response: Optional["Response"] = None,
+    details: Optional[dict] = None,
 ) -> LiqPayException:
     code = str(code)
     return get_exception_class(code)(
-        code, str(description), response=response, **kwargs
+        code,
+        str(description),
+        response=response,
+        details=details,
     )
