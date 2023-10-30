@@ -1,9 +1,12 @@
 from typing import Literal, TYPE_CHECKING, Optional, Union
 from typing import get_args
-from copy import deepcopy
 
 if TYPE_CHECKING:
     from requests import Response
+
+
+UNKNOWN_ERRCODE = "unknown"
+UNKNOWN_ERRMSG = "Unknown error"
 
 
 def is_exception(
@@ -24,16 +27,17 @@ class LiqPayException(Exception):
 
     def __init__(
         self,
-        code: str,
-        description: str,
         /,
+        code: str | None = None,
+        description: str | None = None,
+        *,
         response: Optional["Response"] = None,
         details: Optional[dict] = None,
     ):
-        super().__init__(description)
-        self.code = code
+        super().__init__(description or UNKNOWN_ERRMSG)
+        self.code = code or UNKNOWN_ERRCODE
         self.response = response
-        self.details = deepcopy(details)
+        self.details = details
 
 
 LiqpayAntiFraudErrcode = Literal["limit", "frod", "decline"]
@@ -174,7 +178,7 @@ class LiqPayFinancialException(LiqPayException):
     code: LiqpayFinancialErrcode
 
 
-def get_exception_class(code: str, /) -> type[LiqPayException]:
+def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
     if code in get_args(LiqpayAntiFraudErrcode):
         return LiqPayAntiFraudException
     elif code in get_args(LiqpayFinancialErrcode):
@@ -186,16 +190,11 @@ def get_exception_class(code: str, /) -> type[LiqPayException]:
 
 
 def exception_factory(
-    code: str,
-    description: str,
+    code: str | None = None,
+    description: str | None = None,
     *,
     response: Optional["Response"] = None,
     details: Optional[dict] = None,
 ) -> LiqPayException:
-    code = str(code)
-    return get_exception_class(code)(
-        code,
-        str(description),
-        response=response,
-        details=details,
-    )
+    cls = get_exception_cls(code)
+    return cls(code, description, response=response, details=details)
