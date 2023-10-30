@@ -1,9 +1,17 @@
-from typing import TypedDict, Literal, Union
-from numbers import Number
+from typing import TypedDict, Literal, Union, TYPE_CHECKING
 
-from .exceptions import Errcode
+if TYPE_CHECKING:
+    from numbers import Number
+
+    from .exceptions import Errcode
 
 
+class RequestForm(TypedDict):
+    data: str
+    signature: str
+
+
+Format = Literal["json", "xml", "csv"]
 Language = Literal["uk", "en"]
 SubscribeAction = Literal["subscribe"]
 
@@ -63,18 +71,18 @@ PayType = Literal[
 
 
 class CallbackDict(TypedDict, total=False):
-    acq_id: Number
+    acq_id: "Number"
     action: CallbackAction
-    agent_commission: Number
-    amount: Number
-    amount_bonus: Number
-    amount_credit: Number
-    amount_debit: Number
+    agent_commission: "Number"
+    amount: "Number"
+    amount_bonus: "Number"
+    amount_credit: "Number"
+    amount_debit: "Number"
     authcode_credit: str
     authcode_debit: str
     card_token: str
-    commission_credit: Number
-    commission_debit: Number
+    commission_credit: "Number"
+    commission_debit: "Number"
     completion_date: str
     create_date: str
     currency: str
@@ -83,7 +91,7 @@ class CallbackDict(TypedDict, total=False):
     customer: str
     description: str
     end_date: str
-    err_code: Errcode
+    err_code: "Errcode"
     err_description: str
     info: str
     ip: str
@@ -91,20 +99,20 @@ class CallbackDict(TypedDict, total=False):
     liqpay_order_id: str
     mpi_eci: MpiEci
     order_id: str
-    payment_id: Number
+    payment_id: "Number"
     paytype: PayType
     public_key: str
-    receiver_commission: Number
+    receiver_commission: "Number"
     redirect_to: str
     refund_date_last: str
     rrn_credit: str
     rrn_debit: str
-    sender_bonus: Number
+    sender_bonus: "Number"
     sender_card_bank: str
     sender_card_country: str
     sender_card_mask2: str
     sender_card_type: str
-    sender_commission: Number
+    sender_commission: "Number"
     sender_first_name: str
     sender_last_name: str
     sender_phone: str
@@ -117,5 +125,5 @@ class CallbackDict(TypedDict, total=False):
     product_description: str
     product_name: str
     product_url: str
-    refund_amount: Number
+    refund_amount: "Number"
     verifycode: str
