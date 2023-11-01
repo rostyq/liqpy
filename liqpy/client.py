@@ -338,7 +338,7 @@ class Client:
         
         if recurring_by_token:
             assert server_url is not None, "Server url must be specified for recurring by token"
-            params["recurring_by_token"] = "1"
+            params["recurringbytoken"] = "1"
 
         if detail_addenda is not None:
             params["dae"] = b64encode(dumps(detail_addenda).encode()).decode()
