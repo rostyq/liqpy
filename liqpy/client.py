@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Union, TYPE_CHECKING
+from typing import Optional, Literal, Union, TYPE_CHECKING, List
 from hashlib import sha1
 from base64 import b64encode, b64decode
 from os import environ
@@ -13,10 +13,20 @@ from secret_type import secret, Secret
 
 from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
 from .exceptions import exception_factory, is_exception, LiqPayException
-from .util import to_milliseconds, to_dict, is_sandbox
+from .util import to_milliseconds, to_dict, is_sandbox, format_date, filter_none, verify_url
 
 if TYPE_CHECKING:
-    from .types import CallbackDict, Language, Format
+    from .types import (
+        CallbackDict,
+        Language,
+        Format,
+        Currency,
+        PayType,
+        RROInfoDict,
+        SplitRuleDict,
+        SubscribePeriodicity,
+        DetailAddendaDict,
+    )
 
 
 __all__ = ["Client"]
@@ -66,13 +76,16 @@ class Client:
 
     @property
     def public_key(self) -> str:
+        """Public key used for requests."""
         return self._public_key
 
     @property
     def sandbox(self) -> bool:
+        """Check if client use sandbox LiqPay API."""
         return is_sandbox(self._public_key)
 
     def update_keys(self, /, public_key: str | None, private_key: str | None) -> None:
+        """Update public and private keys."""
         if public_key is None:
             public_key = environ["LIQPAY_PUBLIC_KEY"]
         else:
@@ -119,14 +132,28 @@ class Client:
         return response
 
     def _post_request(
-        self, /, data: str, signature: str, *, stream: bool = False
+        self,
+        /,
+        data: str,
+        signature: str,
+        *,
+        stream: bool = False,
+        **kwargs,
     ) -> "Response":
-        return self._post(REQUEST_URL, data, signature, stream=stream)
+        return self._post(REQUEST_URL, data, signature, stream=stream, **kwargs)
 
     def _post_checkout(
-        self, /, data: str, signature: str, *, redirect: bool = False
+        self,
+        /,
+        data: str,
+        signature: str,
+        *,
+        redirect: bool = False,
+        **kwargs,
     ) -> "Response":
-        return self._post(CHECKOUT_URL, data, signature, allow_redirects=redirect)
+        return self._post(
+            CHECKOUT_URL, data, signature, allow_redirects=redirect, **kwargs
+        )
 
     def _callback(
         self, data: str, signature: str, *, verify: bool = True
@@ -136,7 +163,7 @@ class Client:
         else:
             logger.warning("Skipping signature verification")
 
-        return loads(b64decode(data, validate=True))
+        return loads(b64decode(data))
 
     def sign(self, data: str, /) -> str:
         """Sign data string with private key."""
@@ -145,7 +172,10 @@ class Client:
             return b64encode(sha1(payload).digest()).decode()
 
     def encode(self, /, action: str, **kwargs) -> tuple[str, str]:
-        """Encode parameters into data and signature strings."""
+        """
+        Encode parameters into data and signature strings.
+        See usage example in `liqpy.Client.callback`.
+        """
         data = dumps(self._prepare(action, **kwargs))
         data = b64encode(data.encode()).decode()
         signature = self.sign(data)
@@ -153,11 +183,17 @@ class Client:
         return data, signature
 
     def is_valid(self, /, data: str, signature: str) -> bool:
-        """Check if the signature is valid."""
+        """
+        Check if the signature is valid.
+        Used for verification in `liqpy.Client.verify`.
+        """
         return self.sign(data) == signature
 
     def verify(self, /, data: str, signature: str) -> None:
-        """Verify if the signature is valid. Raise an `AssertionError` if not."""
+        """
+        Verify if the signature is valid. Raise an `AssertionError` if not.
+        Used for verification in `liqpy.Client.callback`.
+        """
         assert self.is_valid(data, signature), "Invalid signature"
 
     def request(self, action: str, **kwargs) -> dict:
@@ -171,28 +207,178 @@ class Client:
 
         result: dict = response.json()
 
-        if is_exception(action, result.pop("result"), result.get("status")):
+        if is_exception(action, result.pop("result", ""), result.get("status")):
             raise exception_factory(
-                code=result.pop("err_code"),
-                description=result.pop("err_description"),
+                code=result.pop("err_code", None),
+                description=result.pop("err_description", None),
                 response=response,
                 details=result,
             )
 
         return result
 
-    def checkout(self, /, action: str, **kwargs) -> str:
+    def checkout(
+        self,
+        /,
+        action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
+        order_id: str,
+        *,
+        amount: Number,
+        currency: "Currency",
+        description: str,
+        rro_info: Optional["RROInfoDict"] = None,
+        expired_date: Optional[Union[datetime, str, Number]] = None,
+        language: Optional["Language"] = None,
+        paytypes: Optional[list["PayType"]] = None,
+        result_url: Optional[str] = None,
+        server_url: Optional[str] = None,
+        verifycode: bool = False,
+        split_rules: Optional[List["SplitRuleDict"]] = None,
+        sender_address: Optional[str] = None,
+        sender_city: Optional[str] = None,
+        sender_country_code: Optional[str] = None,
+        sender_first_name: Optional[str] = None,
+        sender_last_name: Optional[str] = None,
+        sender_postal_code: Optional[str] = None,
+        letter_of_credit: Optional[str] = None,
+        letter_of_credit_date: Optional[Union[datetime, str, Number]] = None,
+        subscribe_date_start: Optional[Union[datetime, str, Number]] = None,
+        subscribe_periodicity: Optional["SubscribePeriodicity"] = None,
+        customer: Optional[str] = None,
+        recurring_by_token: bool = False,
+        customer_user_id: Optional[str] = None,
+        detail_addenda: Optional["DetailAddendaDict"] = None,
+        info: Optional[str] = None,
+        product_category: Optional[str] = None,
+        product_description: Optional[str] = None,
+        product_name: Optional[str] = None,
+        product_url: Optional[str] = None,
+        **kwargs,
+    ) -> str:
         """
         Make a Client-Server checkout request to LiqPay API.
+
+        `kwargs` are passed to `requests.Session.post` method.
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/checkout/doc)
         """
-        response = self._post_checkout(*self.encode(action, **kwargs), redirect=False)
+        assert action in (
+            "auth",
+            "pay",
+            "hold",
+            "subscribe",
+            "paydonate",
+        ), "Invalid action. Must be one of: auth, pay, hold, subscribe, paydonate"
+
+        assert isinstance(amount, Number), "Amount must be a number"
+
+        assert currency in ("EUR", "UAH", "USD"), "Invalid currency. Must be one of: EUR, UAH, USD"
+
+        order_id = str(order_id)
+        assert len(order_id) <= 255, "Order id must be less than 255 characters"
+
+        params = {
+            "order_id": order_id,
+            "amount": amount,
+            "currency": currency,
+            "description": str(description),
+            "rro_info": rro_info,
+            "sender_address": sender_address,
+            "sender_city": sender_city,
+            "sender_country_code": sender_country_code,
+            "sender_first_name": sender_first_name,
+            "sender_last_name": sender_last_name,
+            "sender_postal_code": sender_postal_code,
+            "letter_of_credit": letter_of_credit,
+            "customer_user_id": customer_user_id,
+            "info": info,
+        }
+
+        if action == "auth" and verifycode:
+            params["verifycode"] = "Y"
+
+        if language is not None:
+            assert language in ("en", "uk"), "Invalid language. Must be one of: en, uk"
+            params["language"] = language
+        
+        if result_url is not None:
+            verify_url(result_url)
+            params["result_url"] = result_url
+        
+        if server_url is not None:
+            verify_url(server_url)
+            params["server_url"] = server_url
+        
+        if paytypes is not None:
+            assert paytypes in ("card", "liqpay", "privat24", "masterpass", "moment_part", "cash", "invoice", "qr")
+            params["paytypes"] = ",".join(paytypes)
+
+        if action == "subscribe":
+            if subscribe_date_start is None:
+                subscribe_date_start = datetime.utcnow()
+
+            params.update(
+                subscribe=1,
+                subscribe_date_start=format_date(subscribe_date_start),
+                subscribe_periodicity=subscribe_periodicity or "month",
+            )
+        
+        if customer is not None:
+            assert len(customer) <= 100, "Customer must be less than 100 characters"
+            params["customer"] = customer
+
+        if expired_date is not None:
+            params["expired_date"] = format_date(expired_date)
+
+        if split_rules is not None and len(split_rules) > 0:
+            params["split_rules"] = dumps(split_rules)
+
+        if letter_of_credit_date is not None:
+            params["letter_of_credit_date"] = format_date(letter_of_credit_date)
+        
+        if recurring_by_token:
+            assert server_url is not None, "Server url must be specified for recurring by token"
+            params["recurring_by_token"] = "1"
+
+        if detail_addenda is not None:
+            params["dae"] = b64encode(dumps(detail_addenda).encode()).decode()
+        
+        if product_category is not None:
+            assert len(product_category) <= 25, "Product category must be less than 25 characters"
+            params["product_category"] = product_category
+        
+        if product_description is not None:
+            assert len(product_description) <= 500, "Product description must be less than 500 characters"
+            params["product_description"] = product_description
+        
+        if product_name is not None:
+            assert len(product_name) <= 100, "Product name must be less than 100 characters"
+            params["product_name"] = product_name
+        
+        if product_url is not None:
+            verify_url(product_url)
+            params["product_url"] = product_url
+
+        params = filter_none(params)
+        response = self._post_checkout(
+            *self.encode(action, **params), redirect=False, **kwargs
+        )
 
         next = response.next
 
-        if next is not None:
-            return next.url
-        else:
-            raise LiqPayException(response=response)
+        if next is None:
+            result = {}
+            if response.headers.get("Content-Type", "").startswith("application/json"):
+                result = response.json()
+
+            raise exception_factory(
+                code=result.pop("err_code", None),
+                description=result.pop("err_description", None),
+                response=response,
+                details=result,
+            )
+
+        return next.url
 
     def reports(
         self,

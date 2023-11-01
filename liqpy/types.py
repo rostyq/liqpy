@@ -1,4 +1,4 @@
-from typing import TypedDict, Literal, Union, TYPE_CHECKING
+from typing import TypedDict, Literal, Union, TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from numbers import Number
@@ -14,6 +14,7 @@ class RequestForm(TypedDict):
 Format = Literal["json", "xml", "csv"]
 Language = Literal["uk", "en"]
 SubscribeAction = Literal["subscribe"]
+Currency = Literal["UAH", "USD", "EUR"]
 
 WidgetAction = CheckoutAction = Literal[
     "pay",
@@ -68,6 +69,36 @@ MpiEci = Literal[5, 6, 7]
 PayType = Literal[
     "card", "liqpay", "privat24", "masterpass", "moment_part", "cash", "invoice", "qr"
 ]
+SubscribePeriodicity = Literal["month", "year"]
+
+
+class DetailAddendaDict(TypedDict):
+    airLine: str
+    ticketNumber: str
+    passengerName: str
+    flightNumber: str
+    originCity: str
+    destinationCity: str
+    departureDate: str
+
+
+class SplitRuleDict(TypedDict):
+    public_key: str
+    amount: "Number"
+    commission_payer: Literal["sender", "receiver"]
+    server_url: str
+
+
+class ProductDict(TypedDict):
+    amount: "Number"
+    cost: "Number"
+    id: int
+    price: "Number"
+
+
+class RROInfoDict(TypedDict, total=False):
+    items: List[ProductDict]
+    delivery_emails: List[str]
 
 
 class CallbackDict(TypedDict, total=False):
@@ -85,7 +116,7 @@ class CallbackDict(TypedDict, total=False):
     commission_debit: "Number"
     completion_date: str
     create_date: str
-    currency: str
+    currency: Currency
     currency_credit: str
     currency_debit: str
     customer: str
