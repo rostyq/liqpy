@@ -127,7 +127,7 @@ class Client:
 
     def _prepare(self, /, action: str, **kwargs) -> dict:
         return {
-            **kwargs,
+            **filter_none(kwargs),
             "public_key": self._public_key,
             "version": VERSION,
             "action": str(action),
@@ -396,7 +396,6 @@ class Client:
             verify_url(product_url)
             params["product_url"] = product_url
 
-        params = filter_none(params)
         response = self._post_checkout(
             *self.encode(action, **params), redirect=False, **kwargs
         )
