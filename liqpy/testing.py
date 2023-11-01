@@ -1,8 +1,32 @@
 from typing import Literal as Literal, Optional
 from enum import Enum as Enum
+from datetime import date, timedelta
+from random import randint
 
 
-__all__ = ["TestCard"]
+__all__ = ["TestCard", "gen_card_expire", "gen_card_cvv", "fmt_card_expire_date"]
+
+
+def fmt_card_expire_date(value: date):
+    """Format a date object to MM, YY strings"""
+    return str(value.month).ljust(2, "0"), str(value.year)[-2:].ljust(2, "0")
+
+
+def gen_card_expire(valid: bool = True):
+    """Generate a random card expiration date"""
+    d = date.today()
+
+    if valid:
+        d += timedelta(days=randint(1, 365 * 4))
+    else:
+        d -= timedelta(days=randint(1, 30 * 3))
+    
+    return fmt_card_expire_date(d)
+
+
+def gen_card_cvv() -> str:
+    """Generate a random CVV code"""
+    return str(randint(0, 999)).ljust(3, "0")
 
 
 class TestCard(Enum):
