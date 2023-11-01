@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Union, TYPE_CHECKING, List
+from typing import Optional, Literal, Union, TYPE_CHECKING, Iterable
 from hashlib import sha1
 from base64 import b64encode, b64decode
 from os import environ
@@ -13,7 +13,14 @@ from secret_type import secret, Secret
 
 from .constants import VERSION, REQUEST_URL, CHECKOUT_URL
 from .exceptions import exception_factory, is_exception, LiqPayException
-from .util import to_milliseconds, to_dict, is_sandbox, format_date, filter_none, verify_url
+from .util import (
+    to_milliseconds,
+    to_dict,
+    is_sandbox,
+    format_date,
+    filter_none,
+    verify_url,
+)
 
 if TYPE_CHECKING:
     from .types import (
@@ -229,11 +236,11 @@ class Client:
         rro_info: Optional["RROInfoDict"] = None,
         expired_date: Optional[Union[datetime, str, Number]] = None,
         language: Optional["Language"] = None,
-        paytypes: Optional[list["PayType"]] = None,
+        paytypes: Optional[Iterable["PayType"]] = None,
         result_url: Optional[str] = None,
         server_url: Optional[str] = None,
         verifycode: bool = False,
-        split_rules: Optional[List["SplitRuleDict"]] = None,
+        split_rules: Optional[Iterable["SplitRuleDict"]] = None,
         sender_address: Optional[str] = None,
         sender_city: Optional[str] = None,
         sender_country_code: Optional[str] = None,
@@ -272,7 +279,11 @@ class Client:
 
         assert isinstance(amount, Number), "Amount must be a number"
 
-        assert currency in ("EUR", "UAH", "USD"), "Invalid currency. Must be one of: EUR, UAH, USD"
+        assert currency in (
+            "EUR",
+            "UAH",
+            "USD",
+        ), "Invalid currency. Must be one of: EUR, UAH, USD"
 
         order_id = str(order_id)
         assert len(order_id) <= 255, "Order id must be less than 255 characters"
@@ -300,29 +311,47 @@ class Client:
         if language is not None:
             assert language in ("en", "uk"), "Invalid language. Must be one of: en, uk"
             params["language"] = language
-        
+
         if result_url is not None:
             verify_url(result_url)
             params["result_url"] = result_url
-        
+
         if server_url is not None:
             verify_url(server_url)
             params["server_url"] = server_url
-        
+
         if paytypes is not None:
-            assert paytypes in ("card", "liqpay", "privat24", "masterpass", "moment_part", "cash", "invoice", "qr")
+            paytypes = set(paytypes)
+            assert paytypes.issubset(
+                (
+                    "card",
+                    "liqpay",
+                    "privat24",
+                    "masterpass",
+                    "moment_part",
+                    "cash",
+                    "invoice",
+                    "qr",
+                )
+            ), "Invalid paytypes. Must be one of: card, liqpay, privat24, masterpass, moment_part, cash, invoice, qr"
             params["paytypes"] = ",".join(paytypes)
 
         if action == "subscribe":
             if subscribe_date_start is None:
                 subscribe_date_start = datetime.utcnow()
 
+            if subscribe_periodicity is not None:
+                assert subscribe_periodicity in (
+                    "month",
+                    "year",
+                ), "Invalid subscribe periodicity. Must be one of: month, year"
+
             params.update(
                 subscribe=1,
                 subscribe_date_start=format_date(subscribe_date_start),
                 subscribe_periodicity=subscribe_periodicity or "month",
             )
-        
+
         if customer is not None:
             assert len(customer) <= 100, "Customer must be less than 100 characters"
             params["customer"] = customer
@@ -331,30 +360,38 @@ class Client:
             params["expired_date"] = format_date(expired_date)
 
         if split_rules is not None and len(split_rules) > 0:
-            params["split_rules"] = dumps(split_rules)
+            params["split_rules"] = dumps(list(split_rules))
 
         if letter_of_credit_date is not None:
             params["letter_of_credit_date"] = format_date(letter_of_credit_date)
-        
+
         if recurring_by_token:
-            assert server_url is not None, "Server url must be specified for recurring by token"
+            assert (
+                server_url is not None
+            ), "Server url must be specified for recurring by token"
             params["recurringbytoken"] = "1"
 
         if detail_addenda is not None:
             params["dae"] = b64encode(dumps(detail_addenda).encode()).decode()
-        
+
         if product_category is not None:
-            assert len(product_category) <= 25, "Product category must be less than 25 characters"
+            assert (
+                len(product_category) <= 25
+            ), "Product category must be less than 25 characters"
             params["product_category"] = product_category
-        
+
         if product_description is not None:
-            assert len(product_description) <= 500, "Product description must be less than 500 characters"
+            assert (
+                len(product_description) <= 500
+            ), "Product description must be less than 500 characters"
             params["product_description"] = product_description
-        
+
         if product_name is not None:
-            assert len(product_name) <= 100, "Product name must be less than 100 characters"
+            assert (
+                len(product_name) <= 100
+            ), "Product name must be less than 100 characters"
             params["product_name"] = product_name
-        
+
         if product_url is not None:
             verify_url(product_url)
             params["product_url"] = product_url
