@@ -1,2 +1,3 @@
-ipykernel
-python-dotenv
+-r requirements.txt
+pytest == 7.4.3
+python-dotenv == 1.0.0
