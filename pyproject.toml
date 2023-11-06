@@ -19,5 +19,5 @@ Repository = "https://github.com/rostyq/liqpy"
 [tool.hatch.version]
 path = "liqpy/__init__.py"
 
-[tool.hatch.metadata.hooks.requirements-txt]
+[tool.hatch.metadata.hooks.requirements_txt]
 files = ["requirements.txt"]
