@@ -1,9 +1,13 @@
-from typing import Literal as _L, Union as _U
+from typing import Literal as _Literal, Union as _Union
 
 
-subscribe = _L["subscribed", "unsubscribed"]
-final = _U[_L["error", "failure", "reversed", "success"], subscribe]
-confirmation = _L[
+SubscriptionStatus = _Literal["subscribed", "unsubscribed"]
+ErrorStatus = _Literal["error", "failure"]
+SuccessStatus = _Literal["success"]
+FinalStatus = _Union[
+    ErrorStatus, _Literal["reversed"], SubscriptionStatus, SuccessStatus
+]
+ConfirmationStatus = _Literal[
     "3ds_verify",
     "captcha_verify",
     "cvv_verify",
@@ -18,7 +22,7 @@ confirmation = _L[
     "wait_qr",
     "wait_sender",
 ]
-other = _L[
+OtherStatus = _Literal[
     "cash_wait",
     "hold_wait",
     "invoice_wait",
@@ -31,5 +35,6 @@ other = _L[
     "wait_reserve",
     "wait_secure",
 ]
-
-callback = _U[final, confirmation, other]
+Status = CallbackStatus = _Union[
+    SubscriptionStatus, FinalStatus, ConfirmationStatus, OtherStatus
+]

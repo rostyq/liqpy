@@ -3,24 +3,10 @@ from numbers import Number
 from datetime import datetime
 from uuid import UUID
 
-from liqpy.util import FiscalData, DetailAddenda
+from liqpy.data import FiscalItem, DetailAddenda, SplitRule, FiscalInfo
+
+from .common import SubscribePeriodicity, Language, PayType, PayOption, Format
 from .action import Action
-
-Language = Literal["uk", "en"]
-Currency = Literal["UAH", "USD", "EUR"]
-Format = Literal["json", "xml", "csv"]
-
-PayType = Literal[
-    "apay",
-    "gpay",
-    "apay_tavv",
-    "gpay_tavv",
-    "tavv",
-]
-PayOption = Literal[
-    "card", "liqpay", "privat24", "masterpass", "moment_part", "cash", "invoice", "qr"
-]
-SubscribePeriodicity = Literal["month", "year"]
 
 
 class DetailAddendaDict(TypedDict):
@@ -47,8 +33,8 @@ class FiscalItemDict(TypedDict):
     price: Number
 
 
-class FiscalDict(TypedDict, total=False):
-    items: List[FiscalItemDict | FiscalData]
+class FiscalInfoDict(TypedDict, total=False):
+    items: List[FiscalItemDict | FiscalItem]
     delivery_emails: List[str]
 
 
@@ -66,13 +52,13 @@ class OneClickDict(TypedDict, total=False):
 
 
 class SubscribeDict(TypedDict, total=False):
-    subscribe: Literal[1]
+    subscribe: Literal[1, True]
     subscribe_date_start: str | datetime
     subscribe_periodicity: SubscribePeriodicity
 
 
 class LetterDict(TypedDict, total=False):
-    letter_of_credit: Literal[1]
+    letter_of_credit: Literal[1, True]
     letter_of_credit_date: str | datetime
 
 
@@ -83,6 +69,7 @@ class MPIParamsDict(TypedDict, total=False):
 
 class SenderDict(TypedDict, total=False):
     phone: str
+    sender_phone: str
     sender_first_name: str
     sender_last_name: str
     sender_email: str
@@ -106,7 +93,7 @@ class BaseRequestDict(TypedDict, total=False):
     action: Required["Action"]
 
 
-class RequestParamsDict(
+class LiqpayRequestDict(
     CardDict,
     SenderDict,
     MPIParamsDict,
@@ -118,7 +105,7 @@ class RequestParamsDict(
 ):
     order_id: str | UUID
     amount: Number | str
-    rro_info: FiscalDict
+    rro_info: FiscalInfoDict | FiscalInfo
     expired_date: str | datetime
     language: Language
     paytype: PayType
@@ -127,13 +114,9 @@ class RequestParamsDict(
     server_url: str
     verifycode: Literal["Y", True]
     email: str
-    date_from: datetime
-    date_to: datetime
+    date_from: int | datetime
+    date_to: int | datetime
     resp_format: Format
-    split_rules: list[SplitRuleDict]
+    split_rules: list[SplitRuleDict | SplitRule]
     dae: DetailAddendaDict | DetailAddenda
     info: str
-
-
-class RequestDict(BaseRequestDict, RequestParamsDict, total=False):
-    pass

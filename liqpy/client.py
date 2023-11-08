@@ -1,27 +1,38 @@
-from typing import Optional, Literal, Union, TYPE_CHECKING, Iterable, Unpack
+from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack
 from os import environ
-from json import dumps
 from logging import getLogger
 from datetime import datetime
 from numbers import Number
 from re import search
+from uuid import UUID
 
 from requests import Session
 from secret_type import secret, Secret
 
-from .api import post, Endpoint, sign, request, encode, decode, VERSION
-from .exceptions import exception_factory, is_exception, LiqPayException
-from .util import to_milliseconds, is_sandbox, verify_url
+from liqpy import __version__
+
+from .api import post, Endpoint, sign, request, encode, decode, VERSION, is_sandbox
+from .exceptions import exception_factory
 
 if TYPE_CHECKING:
-    from .types import CallbackDict, RequestParamsDict
-    from .types.post import PostParams
+    from .types.common import Language
+    from .types.request import Format, Language, LiqpayRequestDict
+    from .types.callback import CallbackDict
 
 
 __all__ = ["Client"]
 
 
 logger = getLogger(__name__)
+
+
+CHECKOUT_ACTIONS = (
+    "auth",
+    "pay",
+    "hold",
+    "subscribe",
+    "paydonate",
+)
 
 
 class Client:
@@ -46,8 +57,7 @@ class Client:
     >>> # client.session is closed
     """
 
-    session: Session
-
+    _session: Session
     _public_key: str
     _private_key: Secret[bytes]
 
@@ -59,8 +69,8 @@ class Client:
         *,
         session: Session = None,
     ):
-        self.update_keys(public_key, private_key)
-        self.session = Session() if session is None else session
+        self.update_keys(public_key=public_key, private_key=private_key)
+        self.session = session
 
     @property
     def public_key(self) -> str:
@@ -72,7 +82,25 @@ class Client:
         """Check if client use sandbox LiqPay API."""
         return is_sandbox(self._public_key)
 
-    def update_keys(self, /, public_key: str | None, private_key: str | None) -> None:
+    @property
+    def session(self) -> Session:
+        return self._session
+
+    @session.setter
+    def session(self, /, session: Optional[Session]):
+        if session is None:
+            session = Session()
+        else:
+            assert isinstance(
+                session, Session
+            ), "Session must be an instance of `requests.Session`"
+
+        session.headers.update({"User-Agent": f"{__package__}/{__version__}"})
+        self._session = session
+
+    def update_keys(
+        self, /, *, public_key: str | None, private_key: str | None
+    ) -> None:
         """Update public and private keys."""
         if public_key is None:
             public_key = environ["LIQPAY_PUBLIC_KEY"]
@@ -97,18 +125,18 @@ class Client:
         return self
 
     def __exit__(self, *args):
-        self.session.close()
+        self._session.close()
 
     def __del__(self):
-        self.session.close()
+        self._session.close()
 
     def _callback(
-        self, data: bytes, signature: bytes, *, verify: bool = True
+        self, /, data: bytes, signature: bytes, *, verify: bool = True
     ) -> "CallbackDict":
         if verify:
             self.verify(data, signature)
         else:
-            logger.warning("Skipping signature verification")
+            logger.warning("Skipping LiqPay signature verification")
 
         return decode(data)
 
@@ -122,7 +150,7 @@ class Client:
             return sign(data, key=pk)
 
     def encode(
-        self, /, action: str, **kwargs: Unpack["RequestParamsDict"]
+        self, /, action: str, **kwargs: Unpack["LiqpayRequestDict"]
     ) -> tuple[bytes, bytes]:
         """
         Encode parameters into data and signature strings.
@@ -131,7 +159,9 @@ class Client:
 
         See `liqpy.api.encode` for more information.
         """
-        data = encode(request(action, key=self._public_key, **kwargs))
+        data = encode(
+            request(action, public_key=self._public_key, version=VERSION, **kwargs)
+        )
         signature = self.sign(data)
 
         return data, signature
@@ -150,59 +180,92 @@ class Client:
         """
         assert self.is_valid(data, signature), "Invalid signature"
 
-    def request(
-        self, action: str, params: "RequestParamsDict", **kwargs: Unpack["PostParams"]
-    ) -> dict:
+    def request(self, action: str, **kwargs: "LiqpayRequestDict") -> dict:
         """
         Make a Server-Server request to LiqPay API.
         """
         response = post(
             Endpoint.REQUEST,
-            *self.encode(action, **params),
-            session=self.session,
+            *self.encode(action, **kwargs),
+            session=self._session,
             allow_redirects=False,
             stream=False,
-            **kwargs,
         )
 
         if not response.headers.get("Content-Type", "").startswith("application/json"):
-            raise LiqPayException(response=response)
+            raise exception_factory(response=response)
 
-        result: dict = response.json()
+        data: dict = response.json()
+        result: Optional[Literal["ok", "error"]] = data.pop("result", None)
+        status = data.get("status")
 
-        if is_exception(action, result.pop("result", ""), result.get("status")):
+        if result == "ok" or action in ("status", "data"):
+            return data
+        elif status in ("error", "failure"):
             raise exception_factory(
-                code=result.pop("err_code", None),
-                description=result.pop("err_description", None),
+                code=data.pop("err_code", None),
+                description=data.pop("err_description", None),
                 response=response,
-                details=result,
+                details=data,
             )
+        else:
+            return data
 
-        return result
+    def pay(
+        self,
+        /,
+        amount: Number,
+        order_id: str | UUID,
+        card: str,
+        currency: "Language",
+        description: str,
+        **kwargs: "LiqpayRequestDict",
+    ) -> dict:
+        return self.request(
+            "pay",
+            order_id=order_id,
+            amount=amount,
+            card=card,
+            currency=currency,
+            description=description,
+            **kwargs,
+        )
+    
+    def unsubscribe(self, /, order_id: str | UUID) -> dict:
+        return self.request("unsubscribe", order_id=order_id)
+    
+    def refund(self, /, order_id: str | UUID, amount: Number) -> dict:
+        return self.request("refund", order_id=order_id, amount=amount)
 
     def checkout(
         self,
-        /,
         action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
-        **kwargs: Unpack["RequestParamsDict"],
+        /,
+        order_id: str | UUID,
+        amount: Number,
+        currency: "Language",
+        description: str,
+        **kwargs: Unpack["LiqpayRequestDict"],
     ) -> str:
         """
         Make a Client-Server checkout request to LiqPay API.
 
-        `kwargs` are passed to `requests.Session.post` method.
+        Returns a url to redirect the user to.
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/checkout/doc)
         """
-        assert action in (
-            "auth",
-            "pay",
-            "hold",
-            "subscribe",
-            "paydonate",
-        ), "Invalid action. Must be one of: auth, pay, hold, subscribe, paydonate"
+        assert (
+            action in CHECKOUT_ACTIONS
+        ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
+        kwargs.update(
+            order_id=order_id, amount=amount, currency=currency, description=description
+        )
 
         response = post(
-            Endpoint.CHECKOUT, *self.encode(action, **kwargs), session=self.session
+            Endpoint.CHECKOUT,
+            *self.encode(action, **kwargs),
+            session=self._session,
+            allow_redirects=False,
         )
 
         next = response.next
@@ -216,7 +279,7 @@ class Client:
                 code=result.pop("err_code", None),
                 description=result.pop("err_description", None),
                 response=response,
-                details=result,
+                details=result if len(result) else None,
             )
 
         return next.url
@@ -224,8 +287,8 @@ class Client:
     def reports(
         self,
         /,
-        date_from: Union[datetime, str, Number],
-        date_to: Union[datetime, str, Number],
+        date_from: Union[datetime, str, int],
+        date_to: Union[datetime, str, int],
         *,
         format: Optional["Format"] = None,
     ) -> str:
@@ -245,16 +308,13 @@ class Client:
 
         [Documentaion](https://www.liqpay.ua/en/documentation/api/information/reports/doc)
         """
-
-        kwargs = {
-            "date_from": to_milliseconds(date_from),
-            "date_to": to_milliseconds(date_to),
-        }
-
-        if format is not None:
-            kwargs["resp_format"] = format
-
-        response = self._post_request(*self.encode("reports", **kwargs))
+        response = post(
+            Endpoint.REQUEST,
+            *self.encode(
+                "reports", date_from=date_from, date_to=date_to, resp_format=format
+            ),
+            session=self._session,
+        )
 
         output: str = response.text
         error: dict | None = None
@@ -304,16 +364,15 @@ class Client:
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/ticket/doc)
         """
-        kwargs = {}
-        if payment_id is not None:
-            kwargs["payment_id"] = payment_id
+        self.request(
+            "receipt",
+            order_id=order_id,
+            email=email,
+            payment_id=payment_id,
+            language=language,
+        )
 
-        if language is not None:
-            kwargs["language"] = language
-
-        self.request("receipt", order_id=order_id, email=email, **kwargs)
-
-    def status(self, order_id: str, /) -> dict:
+    def status(self, order_id: str | UUID, /) -> dict:
         """
         Get the status of a payment.
 
@@ -346,7 +405,7 @@ class Client:
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/callback)
         """
-        result = self._callback(data, signature, verify=verify)
+        result = self._callback(data.encode(), signature.encode(), verify=verify)
         version = result.get("version")
 
         if version != VERSION:

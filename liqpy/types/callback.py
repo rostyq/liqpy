@@ -2,7 +2,7 @@ from typing import Literal, TypedDict
 
 from numbers import Number
 
-from liqpy.exceptions import Errcode
+from liqpy.exceptions import LiqPayErrcode
 from liqpy.types import status
 from liqpy.types.acquring import Currency, PayType
 
@@ -34,7 +34,7 @@ class CallbackDict(TypedDict, total=False):
     customer: str
     description: str
     end_date: str
-    err_code: Errcode
+    err_code: LiqPayErrcode
     err_description: str
     info: str
     ip: str
@@ -59,11 +59,11 @@ class CallbackDict(TypedDict, total=False):
     sender_first_name: str
     sender_last_name: str
     sender_phone: str
-    status: status.callback
+    status: status.CallbackStatus
     token: str
     type: str
     version: Literal[3]
-    err_erc: Errcode
+    err_erc: LiqPayErrcode
     product_category: str
     product_description: str
     product_name: str
