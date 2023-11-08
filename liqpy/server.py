@@ -3,10 +3,10 @@ from pprint import pprint
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs
 
-from liqpy.client import Client
+from .client import Client
 
 if TYPE_CHECKING:
-    from liqpy.types import CallbackDict
+    from .types import CallbackDict
 
 
 class LiqpayHandler(BaseHTTPRequestHandler):
@@ -64,14 +64,22 @@ class LiqpayServer(HTTPServer):
 
     def __init__(
         self,
-        *,
+        /,
         host: str = "localhost",
         port: int = 8000,
+        *,
         client: Optional["Client"] = None,
+        timeout: float | None = None,
     ):
         super().__init__((host, port), LiqpayHandler)
         self.client = Client() if client is None else client
         self.callback_history = []
+
+        if timeout is not None:
+            self.timeout = float(timeout)
+
+        self.allow_reuse_address = True
+        self.allow_reuse_port = True
 
     @property
     def last_callback(self) -> "CallbackDict":
