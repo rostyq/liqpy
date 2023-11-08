@@ -15,7 +15,7 @@ from .api import post, Endpoint, sign, request, encode, decode, VERSION, is_sand
 from .exceptions import exception_factory
 
 if TYPE_CHECKING:
-    from .types.common import Language
+    from .types.common import Language, Currency, SubscribePeriodicity
     from .types.request import Format, Language, LiqpayRequestDict
     from .types.callback import CallbackDict
 
@@ -217,7 +217,7 @@ class Client:
         amount: Number,
         order_id: str | UUID,
         card: str,
-        currency: "Language",
+        currency: "Currency",
         description: str,
         **kwargs: "LiqpayRequestDict",
     ) -> dict:
@@ -230,10 +230,10 @@ class Client:
             description=description,
             **kwargs,
         )
-    
+
     def unsubscribe(self, /, order_id: str | UUID) -> dict:
         return self.request("unsubscribe", order_id=order_id)
-    
+
     def refund(self, /, order_id: str | UUID, amount: Number) -> dict:
         return self.request("refund", order_id=order_id, amount=amount)
 
@@ -243,7 +243,7 @@ class Client:
         /,
         order_id: str | UUID,
         amount: Number,
-        currency: "Language",
+        currency: "Currency",
         description: str,
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> str:
@@ -341,6 +341,34 @@ class Client:
                 response=response,
                 details=error,
             )
+
+    def subscribe(
+        self,
+        /,
+        order_id: str | UUID,
+        amount: Number,
+        card: str,
+        card_cvv: str,
+        card_exp_month: str,
+        card_exp_year: str,
+        currency: "Currency",
+        description: str,
+        subscribe_periodicity: "SubscribePeriodicity",
+        **kwargs: Unpack["LiqpayRequestDict"],
+    ) -> dict:
+        return self.request(
+            "subscribe",
+            order_id=order_id,
+            amount=amount,
+            card=card,
+            card_cvv=card_cvv,
+            card_exp_month=card_exp_month,
+            card_exp_year=card_exp_year,
+            currency=currency,
+            description=description,
+            subscribe_periodicity=subscribe_periodicity,
+            **kwargs,
+        )
 
     def data(self, /, order_id: str, info: str) -> dict:
         """
