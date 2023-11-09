@@ -4,7 +4,7 @@ from numbers import Number
 
 from liqpy.exceptions import LiqPayErrcode
 from liqpy.types import status
-from liqpy.types.acquring import Currency, PayType
+from liqpy.types.common import Currency, PayType, Language
 
 
 CallbackAction = Literal[
@@ -13,7 +13,7 @@ CallbackAction = Literal[
 ThreeDS = Literal[5, 6, 7]
 
 
-class CallbackDict(TypedDict, total=False):
+class LiqpayCallbackDict(TypedDict, total=False):
     acq_id: Number
     action: CallbackAction
     agent_commission: Number
@@ -39,8 +39,9 @@ class CallbackDict(TypedDict, total=False):
     info: str
     ip: str
     is_3ds: bool
+    language: Language
     liqpay_order_id: str
-    mpi_eci: ThreeDS
+    mpi_eci: ThreeDS | Literal["5", "6", "7"]
     order_id: str
     payment_id: int
     paytype: PayType
