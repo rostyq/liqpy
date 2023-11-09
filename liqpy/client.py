@@ -1,7 +1,7 @@
-from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack
+from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr
 from os import environ
 from logging import getLogger
-from datetime import datetime
+from datetime import datetime, timedelta
 from numbers import Number
 from re import search
 from uuid import UUID
@@ -13,11 +13,17 @@ from liqpy import __version__
 
 from .api import post, Endpoint, sign, request, encode, decode, VERSION, is_sandbox
 from .exceptions import exception_factory
+from .data import LiqpayCallback
 
 if TYPE_CHECKING:
-    from .types.common import Language, Currency, SubscribePeriodicity
+    from json import JSONEncoder
+
+    from .preprocess import BasePreprocessor
+    from .validation import BaseValidator
+
+    from .types.common import Language, Currency, SubscribePeriodicity, PayOption
     from .types.request import Format, Language, LiqpayRequestDict
-    from .types.callback import CallbackDict
+    from .types.callback import LiqpayCallbackDict
 
 
 __all__ = ["Client"]
@@ -61,6 +67,10 @@ class Client:
     _public_key: str
     _private_key: Secret[bytes]
 
+    validator: Optional["BaseValidator"] = None
+    preprocessor: Optional["BasePreprocessor"] = None
+    encoder: Optional["JSONEncoder"] = None
+
     def __init__(
         self,
         /,
@@ -68,9 +78,16 @@ class Client:
         private_key: str | None = None,
         *,
         session: Session = None,
+        validator: Optional["BaseValidator"] = None,
+        preprocessor: Optional["BasePreprocessor"] = None,
+        encoder: Optional["JSONEncoder"] = None,
     ):
         self.update_keys(public_key=public_key, private_key=private_key)
         self.session = session
+
+        self.validator = validator
+        self.preprocessor = preprocessor
+        self.encoder = encoder
 
     @property
     def public_key(self) -> str:
@@ -132,7 +149,7 @@ class Client:
 
     def _callback(
         self, /, data: bytes, signature: bytes, *, verify: bool = True
-    ) -> "CallbackDict":
+    ) -> "LiqpayCallbackDict":
         if verify:
             self.verify(data, signature)
         else:
@@ -160,7 +177,11 @@ class Client:
         See `liqpy.api.encode` for more information.
         """
         data = encode(
-            request(action, public_key=self._public_key, version=VERSION, **kwargs)
+            request(action, public_key=self._public_key, version=VERSION, **kwargs),
+            filter_none=True,
+            validator=self.validator,
+            preprocessor=self.preprocessor,
+            encoder=self.encoder,
         )
         signature = self.sign(data)
 
@@ -196,20 +217,23 @@ class Client:
             raise exception_factory(response=response)
 
         data: dict = response.json()
+
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
+        err_code = data.pop("err_code", data.pop("code", None))
 
-        if result == "ok" or action in ("status", "data"):
+        if result == "ok" or (action in ("status", "data") and err_code is None):
             return data
-        elif status in ("error", "failure"):
+
+        if status in ("error", "failure") or result == "error":
             raise exception_factory(
-                code=data.pop("err_code", None),
+                code=err_code,
                 description=data.pop("err_description", None),
                 response=response,
                 details=data,
             )
-        else:
-            return data
+
+        return data
 
     def pay(
         self,
@@ -245,6 +269,8 @@ class Client:
         amount: Number,
         currency: "Currency",
         description: str,
+        expired_date: str | datetime | None = None,
+        paytypes: Optional[list["PayOption"]] = None,
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> str:
         """
@@ -257,13 +283,19 @@ class Client:
         assert (
             action in CHECKOUT_ACTIONS
         ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
-        kwargs.update(
-            order_id=order_id, amount=amount, currency=currency, description=description
-        )
 
         response = post(
             Endpoint.CHECKOUT,
-            *self.encode(action, **kwargs),
+            *self.encode(
+                action,
+                order_id=order_id,
+                amount=amount,
+                currency=currency,
+                description=description,
+                expired_date=expired_date,
+                paytypes=paytypes,
+                **kwargs,
+            ),
             session=self._session,
             allow_redirects=False,
         )
@@ -354,6 +386,7 @@ class Client:
         currency: "Currency",
         description: str,
         subscribe_periodicity: "SubscribePeriodicity",
+        subscribe_date_start: datetime | str | timedelta | None | Number,
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> dict:
         return self.request(
@@ -366,6 +399,7 @@ class Client:
             card_exp_year=card_exp_year,
             currency=currency,
             description=description,
+            subscribe_date_start=subscribe_date_start,
             subscribe_periodicity=subscribe_periodicity,
             **kwargs,
         )
@@ -408,7 +442,7 @@ class Client:
         """
         return self.request("status", order_id=order_id)
 
-    def callback(self, /, data: str, signature: str, *, verify: bool = True):
+    def callback(self, /, data: AnyStr, signature: AnyStr, *, verify: bool = True):
         """
         Verify and decode the callback data.
 
@@ -433,10 +467,19 @@ class Client:
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/callback)
         """
-        result = self._callback(data.encode(), signature.encode(), verify=verify)
+        if isinstance(data, str):
+            data = data.encode()
+
+        if isinstance(signature, str):
+            signature = signature.encode()
+
+        result = self._callback(data, signature, verify=verify)
         version = result.get("version")
 
         if version != VERSION:
             logger.warning("Callback version mismatch: %s != %s", version, VERSION)
 
-        return result
+        try:
+            return LiqpayCallback(**result)
+        finally:
+            logger.warning("Failed to parse callback data.", extra=result)

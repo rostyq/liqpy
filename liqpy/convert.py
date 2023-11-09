@@ -1,7 +1,7 @@
 from typing import overload, TYPE_CHECKING
 from functools import singledispatch, cache
 from numbers import Number
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from re import compile
 
 
@@ -29,8 +29,13 @@ def _(value: str, **kwargs):
 
 
 @to_datetime.register
-def _(value: Number, **kwargs):
-    return datetime.fromtimestamp(float(value), tz=UTC)
+def _(value: Number, tz=UTC, **kwargs):
+    return datetime.fromtimestamp(float(value), tz=tz)
+
+
+@to_datetime.register
+def _(value: timedelta, tz=UTC, **kwargs):
+    return datetime.now(tz) + value
 
 
 @singledispatch
@@ -53,6 +58,11 @@ def _(value: str, **kwargs):
     return to_milliseconds(to_datetime(value, **kwargs))
 
 
+@to_milliseconds.register
+def _(value: timedelta, **kwargs):
+    return to_milliseconds(to_datetime(value, **kwargs))
+
+
 if TYPE_CHECKING:
 
     @overload
@@ -68,6 +78,10 @@ if TYPE_CHECKING:
         ...
 
     @overload
+    def to_datetime(value: timedelta, **kwargs) -> datetime:
+        ...
+
+    @overload
     def to_milliseconds(value: datetime, **kwargs) -> int:
         ...
 
@@ -77,4 +91,8 @@ if TYPE_CHECKING:
 
     @overload
     def to_milliseconds(value: int, **kwargs) -> int:
+        ...
+
+    @overload
+    def to_milliseconds(value: timedelta, **kwargs) -> int:
         ...

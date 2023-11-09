@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 UNKNOWN_ERRCODE = "unknown"
 UNKNOWN_ERRMSG = "Unknown error"
 
+TRANSLATIONS = {
+    "Платеж не найден": "Payment not found",
+}
+
 
 class LiqPayException(Exception):
     code: "LiqPayErrcode"
@@ -32,6 +36,8 @@ class LiqPayException(Exception):
         response: Optional["Response"] = None,
         details: Optional[dict] = None,
     ):
+        description = TRANSLATIONS.get(description, description)
+
         super().__init__(description or UNKNOWN_ERRMSG)
         self.code = code or UNKNOWN_ERRCODE
         self.response = response

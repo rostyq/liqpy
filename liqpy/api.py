@@ -2,18 +2,19 @@ from typing import TYPE_CHECKING, Any, AnyStr, Optional, Unpack
 
 from functools import singledispatchmethod
 from enum import Enum
+from dataclasses import asdict
 
 from urllib.parse import urljoin
 from base64 import b64encode, b64decode
 from hashlib import sha1
-from json import dumps, loads, JSONEncoder
+from json import loads, JSONEncoder
 
 from uuid import UUID
 from decimal import Decimal
 from datetime import date, datetime, UTC
 
 from .data import FiscalItem, DetailAddenda, SplitRule
-from .convert import to_datetime, to_milliseconds
+from .preprocess import Preprocessor, BasePreprocessor
 from .validation import Validator, BaseValidator
 
 if TYPE_CHECKING:
@@ -59,6 +60,18 @@ class Endpoint(Enum):
 class LiqPayJSONEncoder(JSONEncoder):
     date_fmt = r"%Y-%m-%d %H:%M:%S"
 
+    def __init__(self) -> None:
+        super().__init__(
+            skipkeys=False,
+            ensure_ascii=True,
+            check_circular=True,
+            allow_nan=False,
+            sort_keys=False,
+            indent=None,
+            separators=None,
+            default=None,
+        )
+
     @singledispatchmethod
     def default(self, o):
         return super().default(o)
@@ -85,35 +98,15 @@ class LiqPayJSONEncoder(JSONEncoder):
 
     @default.register
     def _(self, o: DetailAddenda) -> str:
-        return encode(
-            {
-                "airLine": o.air_line,
-                "ticketNumber": o.ticket_number,
-                "passengerName": o.passenger_name,
-                "flightNumber": o.flight_number,
-                "originCity": o.origin_city,
-                "destinationCity": o.destination_city,
-                "departureDate": o.departure_date.strftime(r"%d%m%y"),
-            }
-        )
+        return b64encode(self.encode(o.to_dict()).encode()).decode()
 
     @default.register
     def _(self, o: SplitRule) -> dict:
-        return {
-            "public_key": o.public_key,
-            "amount": o.amount,
-            "commission_payer": o.commission_payer,
-            "server_url": o.server_url,
-        }
+        return asdict(o)
 
     @default.register
     def _(self, o: FiscalItem) -> dict:
-        return {
-            "id": o.id,
-            "amount": o.amount,
-            "cost": o.cost,
-            "price": o.price,
-        }
+        return asdict(o)
 
 
 def is_sandbox(key: str, /) -> bool:
@@ -204,7 +197,13 @@ def sign(data: bytes, /, key: bytes) -> bytes:
 
 
 def encode(
-    params: "LiqpayRequestDict", /, *, validator: type[BaseValidator] = Validator
+    params: "LiqpayRequestDict",
+    /,
+    *,
+    filter_none: bool = True,
+    validator: Optional[BaseValidator] = None,
+    encoder: Optional[JSONEncoder] = None,
+    preprocessor: Optional[BasePreprocessor] = None,
 ) -> bytes:
     """
     Encode parameters into base64 encoded JSON.
@@ -212,32 +211,23 @@ def encode(
     >>> encode({"action": "status", "version": 3})
     b'eyJhY3Rpb24iOiAic3RhdHVzIiwgInZlcnNpb24iOiAzfQ=='
     """
-    validator()(params)
-    
-    dae = params.get("dae")
-    if isinstance(dae, dict):
-        params["dae"] = DetailAddenda(**dae)
-    
-    split_rules = params.get("split_rules")
-    if split_rules is not None and isinstance(split_rules, list):
-        params["split_rules"] = dumps(split_rules, cls=LiqPayJSONEncoder)
+    if filter_none:
+        params = {key: value for key, value in params.items() if value is not None}
 
-    paytypes = params.get("paytypes")
-    if paytypes is not None and isinstance(paytypes, list):
-        params["paytypes"] = ",".join(paytypes)
+    if encoder is None:
+        encoder = LiqPayJSONEncoder()
 
-    s = dumps(
-        obj=params,
-        skipkeys=False,
-        ensure_ascii=True,
-        check_circular=True,
-        indent=None,
-        allow_nan=False,
-        separators=None,
-        sort_keys=False,
-        cls=LiqPayJSONEncoder,
-    )
-    return b64encode(s.encode())
+    if preprocessor is None:
+        preprocessor = Preprocessor()
+
+    preprocessor(params, encoder=encoder)
+
+    if validator is None:
+        validator = Validator()
+
+    validator(params)
+
+    return b64encode(encoder.encode(params).encode())
 
 
 def decode(data: bytes, /) -> dict[str, Any]:
@@ -259,43 +249,23 @@ def request(
     >>> request("status", key="...", order_id="a1a1a1a1")
     {'action': 'status', 'public_key': '...', 'version': 3, 'order_id': 'a1a1a1a1'}
     """
-    params = {k: v for k, v in params.items() if v is not None}
     params.update(action=action, public_key=public_key, version=version)
 
     match action:
-        case "reports":
-            params.update(
-                date_from=to_milliseconds(params["date_from"]),
-                date_to=to_milliseconds(params["date_to"]),
-            )
-            return params
-
-        case "status" | "invoice_cancel" | "unsubscribe" | "refund" | "data":
-            return params
-
-        case "auth":
-            if params.get("verifycode", False):
-                params["verifycode"] = "Y"
-
         case "subscribe":
             subscribe_date_start = params.get("subscribe_date_start")
 
             if subscribe_date_start is None:
                 subscribe_date_start = datetime.now(UTC)
+            
+            assert "subscribe_periodicity" in params, "subscribe_periodicity is required"
 
             params.update(
-                subscribe=1,
-                subscribe_date_start=to_datetime(subscribe_date_start),
+                subscribe=True,
+                subscribe_date_start=subscribe_date_start,
             )
-
+        
         case "letter_of_credit":
-            params.update(
-                letter_of_credit=1,
-                letter_of_credit_date=to_datetime(params.get("letter_of_credit_date")),
-            )
-
-    if params.get("recurringbytoken", False):
-        assert "server_url" in params, "server_url must be specified"
-        params["reccuringbytoken"] = "1"
+            params["letter_of_credit"] = True
 
     return params

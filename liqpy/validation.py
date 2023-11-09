@@ -188,7 +188,7 @@ class Validator(BaseValidator):
             "tavv",
         ), "paytype must be one of: apay, gpay, apay_tavv, gpay_tavv, tavv"
 
-    def paytypes(self, value, /, **kwargs):
+    def payoption(self, value, /, **kwargs):
         assert value in (
             "apay",
             "gpay",
@@ -200,6 +200,14 @@ class Validator(BaseValidator):
             "invoice",
             "qr",
         ), "paytypes must be one of: apay, gpay, card, liqpay, moment_part, paypart, cash, invoice, qr"
+
+    def paytypes(self, value, /, **kwargs):
+        if isinstance(value, list):
+            for i, item in enumerate(value):
+                try:
+                    self.payoption(item, **kwargs)
+                except AssertionError as e:
+                    raise AssertionError(f"Invalid paytypes element {i}.") from e
 
     def customer(self, value, /, **kwargs):
         string(value, max_len=100)
@@ -281,6 +289,7 @@ class Validator(BaseValidator):
         url(value, max_len=510)
 
     def result_url(self, value, /, **kwargs):
+        # string(value, max_len=510)
         url(value, max_len=510)
 
     def product_url(self, value, /, **kwargs):
