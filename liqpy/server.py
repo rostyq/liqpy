@@ -3,10 +3,10 @@ from pprint import pprint
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs
 
-from liqpy.client import Client
+from .client import Client
 
 if TYPE_CHECKING:
-    from liqpy.types import CallbackDict
+    from .types import LiqpayCallbackDict
 
 
 class LiqpayHandler(BaseHTTPRequestHandler):
@@ -41,7 +41,7 @@ class LiqpayHandler(BaseHTTPRequestHandler):
         data, signature = self._parse_body()
         return self.client.callback(data, signature, verify=True)
 
-    def _push_callback(self, callback: "CallbackDict"):
+    def _push_callback(self, callback: "LiqpayCallbackDict"):
         pprint(callback)
         self.server.callback_history.append(callback)
 
@@ -58,23 +58,31 @@ class LiqpayHandler(BaseHTTPRequestHandler):
 
 class LiqpayServer(HTTPServer):
     client: "Client"
-    callback_history: List["CallbackDict"]
+    callback_history: List["LiqpayCallbackDict"]
 
     """Liqpay server for testing. Do not use in production!"""
 
     def __init__(
         self,
-        *,
+        /,
         host: str = "localhost",
         port: int = 8000,
+        *,
         client: Optional["Client"] = None,
+        timeout: float | None = None,
     ):
         super().__init__((host, port), LiqpayHandler)
         self.client = Client() if client is None else client
         self.callback_history = []
 
+        if timeout is not None:
+            self.timeout = float(timeout)
+
+        self.allow_reuse_address = True
+        self.allow_reuse_port = True
+
     @property
-    def last_callback(self) -> "CallbackDict":
+    def last_callback(self) -> "LiqpayCallbackDict":
         return self.callback_history[-1]
 
 
