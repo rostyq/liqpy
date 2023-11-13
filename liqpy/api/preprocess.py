@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING, Optional
-from datetime import timedelta
 
-from .convert import to_datetime, to_milliseconds
-from .data import DetailAddenda
+from liqpy.models.request import DetailAddenda
+from liqpy.util.convert import to_datetime, to_milliseconds
 
 if TYPE_CHECKING:
     from json import JSONEncoder
-    from .types.request import LiqpayRequestDict
+
+    from liqpy.types.request import LiqpayRequestDict
 
 
 class BasePreprocessor:

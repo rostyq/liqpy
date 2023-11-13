@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from requests import Response
 
-    from .types.error import (
+    from liqpy.types.error import (
         LiqPayErrcode,
         LiqpayAntiFraudErrcode,
         LiqpayFinancialErrcode,
@@ -97,7 +97,7 @@ def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
         return LiqPayException
 
 
-def exception_factory(
+def exception(
     code: str | None = None,
     description: str | None = None,
     *,

@@ -3,10 +3,10 @@ from pprint import pprint
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs
 
-from .client import Client
+from liqpy.client import Client
 
 if TYPE_CHECKING:
-    from .types import LiqpayCallbackDict
+    from liqpy.types import LiqpayCallbackDict
 
 
 class LiqpayHandler(BaseHTTPRequestHandler):

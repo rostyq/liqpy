@@ -1,13 +1,41 @@
 from typing import overload, TYPE_CHECKING
-from functools import singledispatch, cache
+from functools import singledispatch
 from numbers import Number
-from datetime import datetime, UTC, timedelta
-from re import compile
+from datetime import datetime, UTC, timedelta, date
 
 
-@cache
-def date_pattern(flags: int = 0):
-    return compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", flags=flags)
+def from_milliseconds(value: int) -> datetime:
+    return datetime.fromtimestamp(value / 1000)
+
+
+@singledispatch
+def to_date(value, **kwargs) -> date:
+    raise NotImplementedError(f"Unsupported type: {type(value)}")
+
+
+@to_date.register
+def _(value: datetime, **kwargs):
+    return value.date()
+
+
+@to_date.register
+def _(value: date, **kwargs):
+    return value
+
+
+@to_date.register
+def _(value: str, **kwargs):
+    return date.fromisoformat(value)
+
+
+@to_date.register
+def _(value: timedelta, **kwargs):
+    return date.today() + value
+
+
+@to_date.register
+def _(value: Number, **kwargs):
+    return to_date(date.fromtimestamp(float(value)))
 
 
 @singledispatch
@@ -22,10 +50,7 @@ def _(value: datetime, **kwargs):
 
 @to_datetime.register
 def _(value: str, **kwargs):
-    if date_pattern().fullmatch(value):
-        return datetime.strptime(value, r"%Y-%m-%d %H:%M:%S")
-    else:
-        return datetime.fromisoformat(value)
+    return datetime.fromisoformat(value)
 
 
 @to_datetime.register
@@ -64,9 +89,24 @@ def _(value: timedelta, **kwargs):
 
 
 if TYPE_CHECKING:
+    @overload
+    def to_date(value: Number, **kwargs) -> date:
+        ...
 
     @overload
-    def to_datetime(value: Number, **kwargs) -> datetime:
+    def to_date(value: date, **kwargs) -> date:
+        ...
+
+    @overload
+    def to_date(value: str, **kwargs) -> date:
+        ...
+
+    @overload
+    def to_date(value: timedelta, **kwargs) -> date:
+        ...
+
+    @overload
+    def to_date(value: Number, **kwargs) -> date:
         ...
 
     @overload

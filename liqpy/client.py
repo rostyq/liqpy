@@ -11,16 +11,22 @@ from secret_type import secret, Secret
 
 from liqpy import __version__
 
-from .api import post, Endpoint, sign, request, encode, decode, VERSION, is_sandbox
-from .exceptions import exception_factory
-from .data import LiqpayCallback
+from .api import (
+    VERSION,
+    Endpoint,
+    post,
+    sign,
+    request,
+    encode,
+    decode,
+    is_sandbox,
+    exception,
+    BasePreprocessor,
+    BaseValidator,
+    JSONEncoder,
+)
 
 if TYPE_CHECKING:
-    from json import JSONEncoder
-
-    from .preprocess import BasePreprocessor
-    from .validation import BaseValidator
-
     from .types.common import Language, Currency, SubscribePeriodicity, PayOption
     from .types.request import Format, Language, LiqpayRequestDict
     from .types.callback import LiqpayCallbackDict
@@ -29,7 +35,7 @@ if TYPE_CHECKING:
 __all__ = ["Client"]
 
 
-logger = getLogger(__name__)
+logger = getLogger(__package__)
 
 
 CHECKOUT_ACTIONS = (
@@ -214,19 +220,22 @@ class Client:
         )
 
         if not response.headers.get("Content-Type", "").startswith("application/json"):
-            raise exception_factory(response=response)
+            raise exception(response=response)
 
         data: dict = response.json()
 
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
-        err_code = data.pop("err_code", data.pop("code", None))
+        err_code = data.pop("err_code", None) or data.pop("code", None)
 
-        if result == "ok" or (action in ("status", "data") and err_code is None):
+        if result == "ok":
+            return data
+        
+        if action in ("status", "data") and data.get("payment_id") is not None:
             return data
 
         if status in ("error", "failure") or result == "error":
-            raise exception_factory(
+            raise exception(
                 code=err_code,
                 description=data.pop("err_description", None),
                 response=response,
@@ -307,7 +316,7 @@ class Client:
             if response.headers.get("Content-Type", "").startswith("application/json"):
                 result = response.json()
 
-            raise exception_factory(
+            raise exception(
                 code=result.pop("err_code", None),
                 description=result.pop("err_description", None),
                 response=response,
@@ -367,7 +376,7 @@ class Client:
         if error is None:
             return output
         else:
-            raise exception_factory(
+            raise exception(
                 code=error.pop("err_code"),
                 description=error.pop("err_description"),
                 response=response,
@@ -479,7 +488,4 @@ class Client:
         if version != VERSION:
             logger.warning("Callback version mismatch: %s != %s", version, VERSION)
 
-        try:
-            return LiqpayCallback(**result)
-        finally:
-            logger.warning("Failed to parse callback data.", extra=result)
+        return result
