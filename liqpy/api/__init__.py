@@ -1,52 +1,32 @@
 from typing import TYPE_CHECKING, Any, AnyStr, Optional, Unpack
 
-from functools import singledispatchmethod
 from enum import Enum
-from dataclasses import asdict
 
 from urllib.parse import urljoin
 from base64 import b64encode, b64decode
 from hashlib import sha1
 from json import loads, JSONEncoder
 
-from uuid import UUID
-from decimal import Decimal
-from datetime import date, datetime, UTC
+from datetime import datetime, UTC
 
-from .data import FiscalItem, DetailAddenda, SplitRule
+from .encoder import Encoder, JSONEncoder
+from .decoder import Decoder, JSONDecoder
 from .preprocess import Preprocessor, BasePreprocessor
 from .validation import Validator, BaseValidator
+from .exceptions import exception
 
 if TYPE_CHECKING:
     from requests import Session, Response
 
-    from .types import LiqpayRequestDict
-    from .types.action import Action
-    from .types.post import Hooks, Proxies, Timeout, Verify, Cert
+    from liqpy.types import LiqpayRequestDict
+    from liqpy.types.action import Action
+    from liqpy.types.post import Hooks, Proxies, Timeout, Verify, Cert
 
 
 __all__ = ("Endpoint", "post", "sign", "encode", "decode", "request")
 
 URL = "https://www.liqpay.ua"
 VERSION = 3
-
-SENDER_KEYS = {
-    "sender_first_name",
-    "sender_last_name",
-    "sender_email",
-    "sender_address",
-    "sender_city",
-    "sender_country_code",
-    "sender_postal_code",
-    "sender_shipping_state",
-}
-
-PRODUCT_KEYS = {
-    "product_category",
-    "product_description",
-    "product_name",
-    "product_url",
-}
 
 
 class Endpoint(Enum):
@@ -55,58 +35,6 @@ class Endpoint(Enum):
 
     def url(self) -> str:
         return urljoin(URL, self.value)
-
-
-class LiqPayJSONEncoder(JSONEncoder):
-    date_fmt = r"%Y-%m-%d %H:%M:%S"
-
-    def __init__(self) -> None:
-        super().__init__(
-            skipkeys=False,
-            ensure_ascii=True,
-            check_circular=True,
-            allow_nan=False,
-            sort_keys=False,
-            indent=None,
-            separators=None,
-            default=None,
-        )
-
-    @singledispatchmethod
-    def default(self, o):
-        return super().default(o)
-
-    @default.register
-    def _(self, o: Decimal) -> float:
-        return round(float(o), 4)
-
-    @default.register
-    def _(self, o: datetime) -> str:
-        return o.astimezone(UTC).strftime(self.date_fmt)
-
-    @default.register
-    def _(self, o: date) -> str:
-        return o.strftime(self.date_fmt)
-
-    @default.register
-    def _(self, o: bytes) -> str:
-        return o.decode("utf-8")
-
-    @default.register
-    def _(self, o: UUID) -> str:
-        return str(o)
-
-    @default.register
-    def _(self, o: DetailAddenda) -> str:
-        return b64encode(self.encode(o.to_dict()).encode()).decode()
-
-    @default.register
-    def _(self, o: SplitRule) -> dict:
-        return asdict(o)
-
-    @default.register
-    def _(self, o: FiscalItem) -> dict:
-        return asdict(o)
 
 
 def is_sandbox(key: str, /) -> bool:
@@ -215,7 +143,7 @@ def encode(
         params = {key: value for key, value in params.items() if value is not None}
 
     if encoder is None:
-        encoder = LiqPayJSONEncoder()
+        encoder = Encoder()
 
     if preprocessor is None:
         preprocessor = Preprocessor()
@@ -230,9 +158,12 @@ def encode(
     return b64encode(encoder.encode(params).encode())
 
 
-def decode(data: bytes, /) -> dict[str, Any]:
+def decode(data: bytes, /, decoder: Optional[JSONDecoder] = None) -> dict[str, Any]:
     """Decode base64 encoded JSON."""
-    return loads(b64decode(data))
+    if decoder is None:
+        decoder = Decoder()
+
+    return decoder.decode(b64decode(data).decode())
 
 
 def request(

@@ -1,46 +1,20 @@
 from typing import TYPE_CHECKING
-from functools import cache
 from datetime import datetime
-from re import compile
+from re import fullmatch
 from numbers import Number
 from uuid import UUID
 from urllib.parse import urlparse
 
-from .data import DetailAddenda, SplitRule, FiscalItem, FiscalInfo
+from liqpy.models.request import DetailAddenda, SplitRule, FiscalItem, FiscalInfo
 
 if TYPE_CHECKING:
-    from .types.request import (
+    from liqpy.types.request import (
         DetailAddendaDict,
         SplitRuleDict,
         FiscalItemDict,
         FiscalInfoDict,
         LiqpayRequestDict,
     )
-
-
-@cache
-def phone_pattern():
-    return compile(r"\+?380\d{9}")
-
-
-@cache
-def card_cvv_pattern():
-    return compile(r"\d{3}")
-
-
-@cache
-def card_number_pattern():
-    return compile(r"\d{16}")
-
-
-@cache
-def card_exp_year_pattern():
-    return compile(r"(\d{2})?\d{2}")
-
-
-@cache
-def card_exp_month_pattern():
-    return compile(r"(0[1-9])|(1[0-2])")
 
 
 def noop(value, /, **kwargs):
@@ -63,7 +37,7 @@ def string(value, /, *, max_len: int | None = None):
 
 
 def url(value, /, *, max_len: int | None = None):
-    string(value, max_len=max_len) 
+    string(value, max_len=max_len)
     result = urlparse(value or "")
     assert result.scheme in (
         "http",
@@ -141,8 +115,8 @@ class Validator(BaseValidator):
         ), "format must be json, csv or xml"
 
     def phone(self, value, /, **kwargs):
-        assert phone_pattern().fullmatch(
-            value
+        assert fullmatch(
+            r"\+?380\d{9}", value
         ), "phone must be in format +380XXXXXXXXX or 380XXXXXXXXX"
 
     def sender_phone(self, value, /, **kwargs):
@@ -155,19 +129,19 @@ class Validator(BaseValidator):
         assert value in ("uk", "en"), "language must be uk or en"
 
     def card_number(self, value, /, **kwargs):
-        assert card_number_pattern().fullmatch(value), f"card must be 16 digits long"
+        assert fullmatch(r"\d{16}", value), f"card must be 16 digits long"
 
     def card_cvv(self, value, /, **kwargs):
-        assert card_cvv_pattern().fullmatch(value), f"cvv must be 3 digits long"
+        assert fullmatch(r"\d{3}", value), f"cvv must be 3 digits long"
 
     def card_exp_year(self, value, /, **kwargs):
-        assert card_exp_year_pattern().fullmatch(
-            value
+        assert fullmatch(
+            r"(\d{2})?\d{2}", value
         ), f"exp_year must be 2 or 4 digits long"
 
     def card_exp_month(self, value, /, **kwargs):
-        assert card_exp_month_pattern().fullmatch(
-            value
+        assert fullmatch(
+            r"(0[1-9])|(1[0-2])", value
         ), f"exp_month must be 2 digits long and between 01 and 12"
 
     def subscribe(self, value, /, **kwargs):
