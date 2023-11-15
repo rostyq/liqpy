@@ -24,12 +24,14 @@ from .api import (
     BasePreprocessor,
     BaseValidator,
     JSONEncoder,
+    JSONDecoder,
+    Decoder,
 )
 
 if TYPE_CHECKING:
     from .types.common import Language, Currency, SubscribePeriodicity, PayOption
     from .types.request import Format, Language, LiqpayRequestDict
-    from .types.callback import LiqpayCallbackDict
+    from .types.callback import LiqpayCallbackDict, LiqpayRefundDict
 
 
 __all__ = ["Client"]
@@ -73,9 +75,10 @@ class Client:
     _public_key: str
     _private_key: Secret[bytes]
 
-    validator: Optional["BaseValidator"] = None
-    preprocessor: Optional["BasePreprocessor"] = None
-    encoder: Optional["JSONEncoder"] = None
+    validator: Optional[BaseValidator] = None
+    preprocessor: Optional[BasePreprocessor] = None
+    encoder: Optional[JSONEncoder] = None
+    decoder: Optional[JSONDecoder] = None
 
     def __init__(
         self,
@@ -84,9 +87,10 @@ class Client:
         private_key: str | None = None,
         *,
         session: Session = None,
-        validator: Optional["BaseValidator"] = None,
-        preprocessor: Optional["BasePreprocessor"] = None,
-        encoder: Optional["JSONEncoder"] = None,
+        validator: Optional[BaseValidator] = None,
+        preprocessor: Optional[BasePreprocessor] = None,
+        encoder: Optional[JSONEncoder] = None,
+        decoder: Optional[JSONDecoder] = None,
     ):
         self.update_keys(public_key=public_key, private_key=private_key)
         self.session = session
@@ -222,7 +226,7 @@ class Client:
         if not response.headers.get("Content-Type", "").startswith("application/json"):
             raise exception(response=response)
 
-        data: dict = response.json()
+        data: dict = response.json(cls=self.decoder or Decoder)
 
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
@@ -230,7 +234,7 @@ class Client:
 
         if result == "ok":
             return data
-        
+
         if action in ("status", "data") and data.get("payment_id") is not None:
             return data
 
@@ -253,7 +257,7 @@ class Client:
         currency: "Currency",
         description: str,
         **kwargs: "LiqpayRequestDict",
-    ) -> dict:
+    ) -> "LiqpayCallbackDict":
         return self.request(
             "pay",
             order_id=order_id,
@@ -264,10 +268,10 @@ class Client:
             **kwargs,
         )
 
-    def unsubscribe(self, /, order_id: str | UUID) -> dict:
+    def unsubscribe(self, /, order_id: str | UUID) -> "LiqpayCallbackDict":
         return self.request("unsubscribe", order_id=order_id)
 
-    def refund(self, /, order_id: str | UUID, amount: Number) -> dict:
+    def refund(self, /, order_id: str | UUID, amount: Number) -> "LiqpayRefundDict":
         return self.request("refund", order_id=order_id, amount=amount)
 
     def checkout(
@@ -278,7 +282,7 @@ class Client:
         amount: Number,
         currency: "Currency",
         description: str,
-        expired_date: str | datetime | None = None,
+        expired_date: str | datetime | timedelta | None = None,
         paytypes: Optional[list["PayOption"]] = None,
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> str:
@@ -325,11 +329,24 @@ class Client:
 
         return next.url
 
+    def orders(
+        self,
+        /,
+        date_from: Union[datetime, str, int, timedelta],
+        date_to: Union[datetime, str, int, timedelta],
+    ) -> list["LiqpayCallbackDict"]:
+        """
+        Get an archive of recieved payments.
+        See `liqpy.client.Client.reports` for more information.
+        """
+        result = self.reports(date_from, date_to, format="json")
+        return Decoder().decode(result)
+
     def reports(
         self,
         /,
-        date_from: Union[datetime, str, int],
-        date_to: Union[datetime, str, int],
+        date_from: Union[datetime, str, int, timedelta],
+        date_to: Union[datetime, str, int, timedelta],
         *,
         format: Optional["Format"] = None,
     ) -> str:
@@ -337,15 +354,13 @@ class Client:
         Get an archive of recieved payments.
 
         Example to get a json archive for the last 30 days:
-        >>> import json
         >>> from datetime import datetime, timedelta, UTC
         >>> from liqpy.client import Client
         >>> client = Client()
         >>> date_to = datetime.now(UTC)
         >>> date_from = date_to - timedelta(days=30)
-        >>> data = client.reports(date_from, date_to, format="json")
-        >>> data = json.loads(data)
-        >>> print(len(data), "payments")
+        >>> result = client.reports(date_from, date_to, format="csv")
+        >>> print(result)
 
         [Documentaion](https://www.liqpay.ua/en/documentation/api/information/reports/doc)
         """
@@ -397,7 +412,7 @@ class Client:
         subscribe_periodicity: "SubscribePeriodicity",
         subscribe_date_start: datetime | str | timedelta | None | Number,
         **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> dict:
+    ) -> "LiqpayCallbackDict":
         return self.request(
             "subscribe",
             order_id=order_id,
@@ -413,7 +428,7 @@ class Client:
             **kwargs,
         )
 
-    def data(self, /, order_id: str, info: str) -> dict:
+    def data(self, /, order_id: str, info: str) -> "LiqpayCallbackDict":
         """
         Adding an info to already created payment.
 
@@ -443,7 +458,7 @@ class Client:
             language=language,
         )
 
-    def status(self, order_id: str | UUID, /) -> dict:
+    def status(self, order_id: str | UUID, /) -> "LiqpayCallbackDict":
         """
         Get the status of a payment.
 

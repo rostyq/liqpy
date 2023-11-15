@@ -40,4 +40,3 @@ class FiscalItem:
 class FiscalInfo:
     items: list[FiscalItem]
     delivery_emails: list[str]
-

@@ -32,7 +32,23 @@ class BasePreprocessor:
                 raise Exception(f"Failed to convert {key} parameter.") from e
 
 
+def to_one(value, **kwargs):
+    if value:
+        return 1
+
+
 class Preprocessor(BasePreprocessor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.date_from = to_milliseconds
+        self.date_to = to_milliseconds
+        self.expired_date = to_datetime
+        self.subscribe_date_start = to_datetime
+        self.letter_of_credit_date = to_datetime
+        self.subscribe = to_one
+        self.letter_of_credit = to_one
+        self.recurringbytoken = to_one
+
     def dae(self, value, /, **kwargs):
         if isinstance(value, DetailAddenda):
             return value
@@ -47,33 +63,7 @@ class Preprocessor(BasePreprocessor):
         if isinstance(value, list):
             return ",".join(value)
 
-    def date_from(self, value, /, **kwargs):
-        return to_milliseconds(value, **kwargs)
-
-    def date_to(self, value, /, **kwargs):
-        return to_milliseconds(value, **kwargs)
-
-    def subscribe_date_start(self, value, /, **kwargs):
-        return to_datetime(value, **kwargs)
-
-    def letter_of_credit_date(self, value, /, **kwargs):
-        return to_datetime(value, **kwargs)
-
-    def expired_date(self, value, /, **kwargs):
-        return to_datetime(value, **kwargs)
-    
     def verifycode(self, value, /, **kwargs):
         if value:
             return "Y"
     
-    def subscribe(self, value, /, **kwargs):
-        if value:
-            return 1
-    
-    def letter_of_credit(self, value, /, **kwargs):
-        if value:
-            return 1
-    
-    def recurringbytoken(self, value, /, **kwargs):
-        if value:
-            return "1"

@@ -1,7 +1,7 @@
 from json import JSONDecoder
 from ipaddress import IPv4Address
 
-from liqpy.util.convert import to_datetime
+from liqpy.util.convert import from_milliseconds
 
 
 class Decoder(JSONDecoder):
@@ -14,12 +14,12 @@ class Decoder(JSONDecoder):
             strict=True,
             object_pairs_hook=None,
         )
-        self.create_date = to_datetime
-        self.end_date = to_datetime
-        self.completion_date = to_datetime
+        self.create_date = from_milliseconds
+        self.end_date = from_milliseconds
+        self.completion_date = from_milliseconds
         self.mpi_eci = int
         self.ip = IPv4Address
-        self.refund_date_last = to_datetime
+        self.refund_date_last = from_milliseconds
     
     def _object_hook(self, o: dict, /) -> dict:
         for key, value in o.items():

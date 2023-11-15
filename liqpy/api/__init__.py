@@ -10,6 +10,7 @@ from json import loads, JSONEncoder
 from datetime import datetime, UTC
 
 from .encoder import Encoder, JSONEncoder
+from .decoder import Decoder, JSONDecoder
 from .preprocess import Preprocessor, BasePreprocessor
 from .validation import Validator, BaseValidator
 from .exceptions import exception
@@ -157,9 +158,12 @@ def encode(
     return b64encode(encoder.encode(params).encode())
 
 
-def decode(data: bytes, /) -> dict[str, Any]:
+def decode(data: bytes, /, decoder: Optional[JSONDecoder] = None) -> dict[str, Any]:
     """Decode base64 encoded JSON."""
-    return loads(b64decode(data))
+    if decoder is None:
+        decoder = Decoder()
+
+    return decoder.decode(b64decode(data).decode())
 
 
 def request(
