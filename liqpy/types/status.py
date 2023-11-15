@@ -4,9 +4,7 @@ from typing import Literal as _Literal, Union as _Union
 SubscriptionStatus = _Literal["subscribed", "unsubscribed"]
 ErrorStatus = _Literal["error", "failure"]
 SuccessStatus = _Literal["success"]
-FinalStatus = _Union[
-    ErrorStatus, _Literal["reversed"], SubscriptionStatus, SuccessStatus
-]
+FinalStatus = _Union[ErrorStatus, _Literal["reversed"], SuccessStatus]
 ConfirmationStatus = _Literal[
     "3ds_verify",
     "captcha_verify",
