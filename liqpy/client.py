@@ -274,6 +274,11 @@ class Client:
     def refund(self, /, order_id: str | UUID, amount: Number) -> "LiqpayRefundDict":
         return self.request("refund", order_id=order_id, amount=amount)
 
+    def complete(
+        self, /, order_id: str | UUID, *, amount: Number | None = None
+    ) -> "LiqpayCallbackDict":
+        return self.request("hold_completion", order_id=order_id, amount=amount)
+
     def checkout(
         self,
         action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
