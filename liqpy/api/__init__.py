@@ -91,6 +91,7 @@ def post(
     ...     response = request(Endpoint.REQUEST, data, signature, session=session) # doctest: +SKIP
     ...     result = response.json() # doctest: +SKIP
     """
+    # print(data)
     response = session.request(
         method="POST",
         url=endpoint.url(),
