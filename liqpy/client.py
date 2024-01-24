@@ -271,10 +271,10 @@ class Client:
     def unsubscribe(self, /, order_id: str | UUID) -> "LiqpayCallbackDict":
         return self.request("unsubscribe", order_id=order_id)
 
-    def refund(self, /, order_id: str | UUID, *, amount: Number) -> "LiqpayRefundDict":
+    def refund(self, /, order_id: str | UUID, *, amount: Number | None = None) -> "LiqpayRefundDict":
         return self.request("refund", order_id=order_id, amount=amount)
     
-    def refund_payment(self, /, payment_id: int, *, amount: Number) -> "LiqpayRefundDict":
+    def refund_payment(self, /, payment_id: int, *, amount: Number | None = None) -> "LiqpayRefundDict":
         return self.request("refund", payment_id=str(payment_id), amount=amount)
 
     def complete(
