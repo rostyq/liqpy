@@ -432,8 +432,8 @@ class Client:
         content_type = response.headers.get("Content-Type", "")
 
         if content_type.startswith("application/json"):
-            if format == "json":
-                s = search(r'"data":(\[(.+?)\])', response.text)
+            if format == "json" or format is None:
+                s = search(r'"data":(\[(.*)\])\}$', output)
                 if s is not None:
                     output = s.group(1)
                 else:
