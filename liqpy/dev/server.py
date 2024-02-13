@@ -1,18 +1,24 @@
-from typing import TYPE_CHECKING, Optional, List
-from pprint import pprint
+from warnings import warn
+from contextlib import suppress
+from typing import TYPE_CHECKING, Optional, Callable
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs
 
 from liqpy.client import Client
+from liqpy.dev import LiqPyWarning
 
 if TYPE_CHECKING:
     from liqpy.types import LiqpayCallbackDict
 
 
 class LiqpayHandler(BaseHTTPRequestHandler):
-    server: "LiqpayServer"
+    """
+    Liqpay HTTP request handler for testing
 
-    """Liqpay HTTP request handler for testing."""
+    Do not use in production!
+    """
+
+    server: "LiqpayServer"
 
     @property
     def client(self) -> "Client":
@@ -39,28 +45,27 @@ class LiqpayHandler(BaseHTTPRequestHandler):
 
     def _handle_webhook(self):
         data, signature = self._parse_body()
-        return self.client.callback(data, signature, verify=True)
-
-    def _push_callback(self, callback: "LiqpayCallbackDict"):
-        pprint(callback)
-        self.server.callback_history.append(callback)
+        return self.client.callback(data, signature, verify=self.server.verify)
 
     def do_POST(self):
         self.log_message('"POST %s %s"', self.path, self.protocol_version)
         try:
-            self._push_callback(self._handle_webhook())
-        # except Exception as e:
-        # self.log_error("Error: %s", e)
+            self.server.callback(self._handle_webhook())
         finally:
             self.send_response(204)
             self.end_headers()
 
 
 class LiqpayServer(HTTPServer):
-    client: "Client"
-    callback_history: List["LiqpayCallbackDict"]
+    """
+    Liqpay server for testing
 
-    """Liqpay server for testing. Do not use in production!"""
+    Do not use in production!
+    """
+
+    client: "Client"
+    verify: bool
+    callback: Callable[["LiqpayCallbackDict"], None]
 
     def __init__(
         self,
@@ -68,12 +73,15 @@ class LiqpayServer(HTTPServer):
         host: str = "localhost",
         port: int = 8000,
         *,
+        callback: Callable[["LiqpayCallbackDict"], None] = lambda _: None,
         client: Optional["Client"] = None,
         timeout: float | None = None,
+        verify: bool = True,
     ):
         super().__init__((host, port), LiqpayHandler)
         self.client = Client() if client is None else client
-        self.callback_history = []
+        self.callback = callback
+        self.verify = verify
 
         if timeout is not None:
             self.timeout = float(timeout)
@@ -81,23 +89,53 @@ class LiqpayServer(HTTPServer):
         self.allow_reuse_address = True
         self.allow_reuse_port = True
 
-    @property
-    def last_callback(self) -> "LiqpayCallbackDict":
-        return self.callback_history[-1]
+        warn(
+            "LiqPy Test Server is only for development and testing purposes. "
+            "Do not use it in production!",
+            category=LiqPyWarning,
+            stacklevel=2,
+        )
+
+    def handle_callback(
+        self, timeout: float | None = None
+    ) -> Optional["LiqpayCallbackDict"]:
+        result: Optional["LiqpayCallbackDict"] = None
+        previous_callback = self.callback
+        previous_timeout = self.timeout
+
+        if timeout is not None:
+            self.timeout = timeout
+
+        def cb(value: "LiqpayCallbackDict"):
+            nonlocal result
+            result = value
+
+        self.callback = cb
+        self.handle_request()
+
+        self.callback = previous_callback
+        self.timeout = previous_timeout
+
+        return result
 
 
 if __name__ == "__main__":
+    from logging import getLogger, basicConfig
+    from pprint import pprint
+
     from dotenv import load_dotenv
+
+    basicConfig(level="DEBUG")
 
     load_dotenv(".env")
 
-    with LiqpayServer(client=Client()) as server:
-        host, port = server.server_address
-        print(f"LiqPay Test Server listening on {host}:{port}")
+    logger = getLogger()
 
-        try:
+    with LiqpayServer(client=Client(), callback=lambda c: pprint(c)) as server:
+        host, port = server.server_address
+        logger.info(f"LiqPy Test Server listening on {host}:{port}")
+
+        with suppress(KeyboardInterrupt):
             server.serve_forever()
-        except KeyboardInterrupt:
-            print("LiqPay Test Server stopped.")
-        finally:
-            server.server_close()
+
+    logger.info(f"LiqPy Test Server closed")
