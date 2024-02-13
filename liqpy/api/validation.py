@@ -61,6 +61,8 @@ def check_required(params: dict[str], keys: set[str]):
 
 
 class BaseValidator:
+    """Base class for LiqPay API request validator"""
+
     def __call__(self, o: "LiqpayRequestDict", /, **kwargs):
         for key, value in o.items():
             try:
@@ -72,6 +74,8 @@ class BaseValidator:
 
 
 class Validator(BaseValidator):
+    """LiqPay API request validator"""
+
     def version(self, value, /, **kwargs):
         assert isinstance(value, int), f"version must be an integer"
         assert value > 0, f"version must be greater than 0"

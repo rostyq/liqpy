@@ -19,10 +19,13 @@ UNKNOWN_ERRMSG = "Unknown error"
 
 TRANSLATIONS = {
     "Платеж не найден": "Payment not found",
+    "Превышен лимит суммы": "The amount limit has been exceeded",
 }
 
 
 class LiqPayException(Exception):
+    """Base LiqPay API exception"""
+
     code: "LiqPayErrcode"
     details: dict
     response: Optional["Response"] = None
@@ -36,7 +39,9 @@ class LiqPayException(Exception):
         response: Optional["Response"] = None,
         details: Optional[dict] = None,
     ):
-        description = TRANSLATIONS.get(description, description)
+        if description is not None:
+            description = description.strip(" .")
+            description = TRANSLATIONS.get(description, description)
 
         super().__init__(description or UNKNOWN_ERRMSG)
         self.code = code or UNKNOWN_ERRCODE
@@ -45,30 +50,37 @@ class LiqPayException(Exception):
 
 
 class LiqPayAntiFraudException(LiqPayException):
+    """LiqPay anti-fraud exception"""
     code: "LiqpayAntiFraudErrcode"
 
 
 class LiqPayNonFinancialException(LiqPayException):
+    """LiqPay non-financial exception"""
     code: "LiqpayNonFinancialErrcode"
 
 
 class LiqPayExpireException(LiqPayNonFinancialException):
+    """LiqPay expire exception"""
     code: "LiqpayExpireErrcode"
 
 
 class LiqPayRequestException(LiqPayNonFinancialException):
+    """LiqPay request exception"""
     code: "LiqpayRequestErrcode"
 
 
 class LiqPayPaymentException(LiqPayNonFinancialException):
+    """LiqPay payment exception"""
     code: "LiqpayPaymentErrcode"
 
 
 class LiqPayFinancialException(LiqPayException):
+    """LiqPay financial exception"""
     code: "LiqpayFinancialErrcode"
 
 
 def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
+    """Get exception class by error code"""
     if code is None or code == "unknown":
         return LiqPayException
     elif code in ("limit", "frod", "decline"):
@@ -104,5 +116,6 @@ def exception(
     response: Optional["Response"] = None,
     details: Optional[dict] = None,
 ) -> LiqPayException:
+    """Create LiqPay API exception instance by error code and description"""
     cls = get_exception_cls(code)
     return cls(code, description, response=response, details=details)

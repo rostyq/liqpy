@@ -5,6 +5,8 @@ from liqpy.util.convert import from_milliseconds
 
 
 class Decoder(JSONDecoder):
+    """Custom JSON decoder for LiqPay API responses"""
+
     def __init__(self):
         super().__init__(
             object_hook=self._object_hook,

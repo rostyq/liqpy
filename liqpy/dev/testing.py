@@ -30,6 +30,12 @@ def gen_card_cvv() -> str:
 
 
 class TestCard(Enum):
+    """
+    Test card numbers for LiqPay API requests
+
+    [LiqPay API Testing](https://www.liqpay.ua/en/documentation/api/sandbox)
+    """
+
     SUCCESSFUL_PAYMENT = "4242424242424242"
     SUCCESSFUL_PAYMENT_WITH_3DS = "4000000000003063"
     SUCCESSFUL_PAYMENT_WITH_OTP = "4000000000003089"
@@ -42,6 +48,7 @@ class TestCard(Enum):
 
     @classmethod
     def successful(cls, code: Optional[Literal["3ds", "otp", "cvv", "token"]] = None):
+        """Card number for a successful payment with a specific code"""
         if code is None:
             return cls.SUCCESSFUL_PAYMENT.value
         else:
@@ -49,4 +56,5 @@ class TestCard(Enum):
 
     @classmethod
     def failure(cls, errcode: Literal["limit", "9859"] = "limit"):
+        """Card number for a failed payment with a specific error code"""
         return cls[f"FAILURE_PAYMENT_ERRCODE_{errcode.upper()}"].value

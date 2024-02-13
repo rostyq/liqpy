@@ -30,14 +30,18 @@ VERSION = 3
 
 
 class Endpoint(Enum):
+    """LiqPay API endpoints"""
+
     REQUEST: str = "/api/request"
     CHECKOUT: str = f"/api/{VERSION}/checkout"
 
     def url(self) -> str:
+        """Return full URL for the endpoint"""
         return urljoin(URL, self.value)
 
 
 def is_sandbox(key: str, /) -> bool:
+    """Check if the key is a sandbox key"""
     return key.startswith("sandbox_")
 
 
@@ -57,7 +61,9 @@ def post(
     cert: Optional["Cert"] = None,
 ) -> "Response":
     """
-    Send POST request to LiqPay API.
+    Send POST request to LiqPay API
+
+    See [Rules for the formation of a request for payment](https://www.liqpay.ua/en/documentation/data_signature).
 
     Arguments
     ---------
@@ -116,7 +122,13 @@ def post(
 
 def sign(data: bytes, /, key: bytes) -> bytes:
     """
-    Sign data string with private key.
+    Sign data string with private key
+
+    Algorithm:
+
+    1. Concatenate the private key with the data string as `key + data + key`
+    2. Calculate SHA1 hash of the concatenated string
+    3. Encode the hash in base64
 
     >>> data = encode({"action": "status", "version": 3})
     >>> sign(data, key=b"a4825234f4bae72a0be04eafe9e8e2bada209255")
@@ -135,7 +147,7 @@ def encode(
     preprocessor: Optional[BasePreprocessor] = None,
 ) -> bytes:
     """
-    Encode parameters into base64 encoded JSON.
+    Encode parameters into base64 encoded JSON
 
     >>> encode({"action": "status", "version": 3})
     b'eyJhY3Rpb24iOiAic3RhdHVzIiwgInZlcnNpb24iOiAzfQ=='
@@ -160,7 +172,7 @@ def encode(
 
 
 def decode(data: bytes, /, decoder: Optional[JSONDecoder] = None) -> dict[str, Any]:
-    """Decode base64 encoded JSON."""
+    """Decode base64 encoded JSON"""
     if decoder is None:
         decoder = Decoder()
 
@@ -176,7 +188,7 @@ def request(
     **params: "Unpack[LiqpayRequestDict]",
 ) -> "LiqpayRequestDict":
     """
-    Create data dictionary for LiqPay API request.
+    Create data dictionary for LiqPay API request
 
     >>> request("status", key="...", order_id="a1a1a1a1")
     {'action': 'status', 'public_key': '...', 'version': 3, 'order_id': 'a1a1a1a1'}

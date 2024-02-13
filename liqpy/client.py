@@ -1,4 +1,5 @@
-from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr
+from warnings import warn
+from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr, Type
 from os import environ
 from logging import getLogger
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ from requests import Session
 from secret_type import secret, Secret
 
 from liqpy import __version__
+from liqpy.dev import LiqPyWarning
 
 from .api import (
     VERSION,
@@ -90,7 +92,7 @@ class Client:
         validator: Optional[BaseValidator] = None,
         preprocessor: Optional[BasePreprocessor] = None,
         encoder: Optional[JSONEncoder] = None,
-        decoder: Optional[JSONDecoder] = None,
+        decoder: Optional[Type[JSONDecoder]] = None,
     ):
         self.update_keys(public_key=public_key, private_key=private_key)
         self.session = session
@@ -98,19 +100,25 @@ class Client:
         self.validator = validator
         self.preprocessor = preprocessor
         self.encoder = encoder
+        self.decoder = decoder
 
     @property
     def public_key(self) -> str:
-        """Public key used for requests."""
+        """Public key used for requests"""
         return self._public_key
 
     @property
     def sandbox(self) -> bool:
-        """Check if client use sandbox LiqPay API."""
+        """Check if client use sandbox LiqPay API"""
         return is_sandbox(self._public_key)
 
     @property
     def session(self) -> Session:
+        """
+        Session object used for requests
+
+        For advanced usage see: https://docs.python-requests.org/en/latest/user/advanced/#session-objects
+        """
         return self._session
 
     @session.setter
@@ -128,7 +136,7 @@ class Client:
     def update_keys(
         self, /, *, public_key: str | None, private_key: str | None
     ) -> None:
-        """Update public and private keys."""
+        """Update public and private keys"""
         if public_key is None:
             public_key = environ["LIQPAY_PUBLIC_KEY"]
 
@@ -142,8 +150,11 @@ class Client:
         self._public_key = public_key
         self._private_key = secret(private_key.encode())
 
-        if sandbox:
-            logger.warning("Using sandbox LiqPay API.")
+        warn(
+            "Using %s LiqPay API" % "sandbox" if sandbox else "live",
+            stacklevel=2,
+            category=LiqPyWarning,
+        )
 
     def __repr__(self):
         return f'{self.__class__.__name__}(public_key="{self._public_key}")'
@@ -169,7 +180,7 @@ class Client:
 
     def sign(self, data: bytes, /) -> bytes:
         """
-        Sign data string with private key.
+        Sign data string with private key
 
         See `liqpy.api.sign` for more information.
         """
@@ -180,7 +191,7 @@ class Client:
         self, /, action: str, **kwargs: Unpack["LiqpayRequestDict"]
     ) -> tuple[bytes, bytes]:
         """
-        Encode parameters into data and signature strings.
+        Encode parameters into data and signature strings
 
         >>> data, signature = client.encode("status", order_id="a1a1a1a1")
 
@@ -199,21 +210,25 @@ class Client:
 
     def is_valid(self, /, data: bytes, signature: bytes) -> bool:
         """
-        Check if the signature is valid.
+        Check if the signature is valid
+
         Used for verification in `liqpy.Client.verify`.
         """
         return self.sign(data) == signature
 
     def verify(self, /, data: bytes, signature: bytes) -> None:
         """
-        Verify if the signature is valid. Raise an `AssertionError` if not.
+        Verify data signature
+
+        Raises an `AssertionError` if `data` does not match the `signature`.
+
         Used for verification in `liqpy.Client.callback`.
         """
         assert self.is_valid(data, signature), "Invalid signature"
 
     def request(self, action: str, **kwargs: "LiqpayRequestDict") -> dict:
         """
-        Make a Server-Server request to LiqPay API.
+        Make a Server-Server request to LiqPay API
         """
         response = post(
             Endpoint.REQUEST,
@@ -258,6 +273,11 @@ class Client:
         description: str,
         **kwargs: "LiqpayRequestDict",
     ) -> "LiqpayCallbackDict":
+        """
+        Request a `pay` action from LiqPay API
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/pay/doc)
+        """
         return self.request(
             "pay",
             order_id=order_id,
@@ -269,17 +289,42 @@ class Client:
         )
 
     def unsubscribe(self, /, order_id: str | UUID) -> "LiqpayCallbackDict":
+        """
+        Cancel recurring payments for the order
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/unsubscribe/doc)
+        """
         return self.request("unsubscribe", order_id=order_id)
 
-    def refund(self, /, order_id: str | UUID, *, amount: Number | None = None) -> "LiqpayRefundDict":
-        return self.request("refund", order_id=order_id, amount=amount)
-    
-    def refund_payment(self, /, payment_id: int, *, amount: Number | None = None) -> "LiqpayRefundDict":
-        return self.request("refund", payment_id=str(payment_id), amount=amount)
+    def refund(
+        self,
+        /,
+        payment_id: int | None = None,
+        *,
+        order_id: str | UUID | None = None,
+        amount: Number | None = None,
+    ) -> "LiqpayRefundDict":
+        """
+        Make a refund request to LiqPay API
+
+        For recurring payments `payment_id` parameter is required, in other cases use `order_id`.
+        """
+        match (order_id, payment_id):
+            case (_, payment_id) if payment_id is not None:
+                return self.request("refund", payment_id=str(payment_id), amount=amount)
+            case (order_id, None) if order_id is not None:
+                return self.request("refund", order_id=order_id, amount=amount)
+            case (None, None):
+                raise ValueError("`order_id` or `payment_id` must be provided")
 
     def complete(
         self, /, order_id: str | UUID, *, amount: Number | None = None
     ) -> "LiqpayCallbackDict":
+        """
+        Request a `hold_completion` action from LiqPay API
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold_completion/doc)
+        """
         return self.request("hold_completion", order_id=order_id, amount=amount)
 
     def checkout(
@@ -295,7 +340,7 @@ class Client:
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> str:
         """
-        Make a Client-Server checkout request to LiqPay API.
+        Make a Client-Server checkout request to LiqPay API
 
         Returns a url to redirect the user to.
 
@@ -344,8 +389,9 @@ class Client:
         date_to: Union[datetime, str, int, timedelta],
     ) -> list["LiqpayCallbackDict"]:
         """
-        Get an archive of recieved payments.
-        See `liqpy.client.Client.reports` for more information.
+        Get an archive of recieved payments
+
+        For a significant amount of data use `liqpy.client.Client.reports` with `csv` format instead.
         """
         result = self.reports(date_from, date_to, format="json")
         return Decoder().decode(result)
@@ -359,7 +405,7 @@ class Client:
         format: Optional["Format"] = None,
     ) -> str:
         """
-        Get an archive of recieved payments.
+        Get an archive of recieved payments
 
         Example to get a json archive for the last 30 days:
         >>> from datetime import datetime, timedelta, UTC
@@ -421,6 +467,11 @@ class Client:
         subscribe_date_start: datetime | str | timedelta | None | Number,
         **kwargs: Unpack["LiqpayRequestDict"],
     ) -> "LiqpayCallbackDict":
+        """
+        Create an order with recurring payment
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe/doc)
+        """
         return self.request(
             "subscribe",
             order_id=order_id,
@@ -438,7 +489,7 @@ class Client:
 
     def data(self, /, order_id: str, info: str) -> "LiqpayCallbackDict":
         """
-        Adding an info to already created payment.
+        Adding an info to already created payment
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/data/doc)
         """
@@ -454,7 +505,7 @@ class Client:
         language: Optional["Language"] = None,
     ) -> None:
         """
-        Send a receipt to the customer.
+        Send a receipt to the customer
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/ticket/doc)
         """
@@ -468,7 +519,7 @@ class Client:
 
     def status(self, order_id: str | UUID, /) -> "LiqpayCallbackDict":
         """
-        Get the status of a payment.
+        Get the status of a payment
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/status/doc)
         """
@@ -476,7 +527,7 @@ class Client:
 
     def callback(self, /, data: AnyStr, signature: AnyStr, *, verify: bool = True):
         """
-        Verify and decode the callback data.
+        Verify and decode the callback data
 
         Example:
         >>> client = Client()

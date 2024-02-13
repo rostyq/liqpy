@@ -15,6 +15,8 @@ __all__ = ("Encoder", "JSONEncoder")
 
 
 class Encoder(JSONEncoder):
+    """Custom JSON encoder for LiqPay API requests"""
+
     date_fmt = r"%Y-%m-%d %H:%M:%S"
 
     def __init__(self) -> None:

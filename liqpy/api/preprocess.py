@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 
 class BasePreprocessor:
+    """Base class for LiqPay API request preprocessor"""
     def __call__(
         self, o: "LiqpayRequestDict", /, encoder: Optional["JSONEncoder"], **kwargs
     ):
@@ -38,6 +39,8 @@ def to_one(value, **kwargs):
 
 
 class Preprocessor(BasePreprocessor):
+    """LiqPay API request preprocessor"""
+
     def __init__(self) -> None:
         super().__init__()
         self.date_from = to_milliseconds
