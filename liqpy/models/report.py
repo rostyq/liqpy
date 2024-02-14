@@ -1,8 +1,55 @@
 from decimal import Decimal
-from typing import Any
-from enum import StrEnum, auto
+from typing import Any, Self
+from enum import StrEnum, auto, Enum, member
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
+from liqpy.util.convert import to_datetime
+
+
+class Field(Enum):
+    ID = member(lambda x: int(x))
+    AMOUNT = member(lambda x: Decimal(x))
+    SENDER_COMMISSION = member(lambda x: Decimal(x))
+    RECEIVER_COMMISSION = member(lambda x: Decimal(x))
+    AGENT_COMMISSION = member(lambda x: Decimal(x))
+    CURRENCY = member(lambda x: Currency(x))
+    AMOUNT_CREDIT = member(lambda x: Decimal(x) if x else None)
+    COMISSION_CREDIT = member(lambda x: Decimal(x) if x else None)
+    CURRENCY_CREDIT = member(lambda x: Currency(x) if x else None)
+    CREATE_DATE = member(lambda x: to_datetime(x))
+    END_DATE = member(lambda x: to_datetime(x))
+    TYPE = member(lambda x: x)
+    STATUS = member(lambda x: Status(x))
+    STATUS_ERR_CODE = member(lambda x: Code(x) if x else None)
+    AUTH_CODE = member(lambda x: x if x else None)
+    SHOP_ORDER_ID = member(lambda x: x)
+    DESCRIPTION = member(lambda x: x)
+    PHONE = member(lambda x: x if x else None)
+    SENDER_COUNTRY_CODE = member(lambda x: x if x else None)
+    CARD = member(lambda x: x)
+    ISSUER_BANK = member(lambda x: x)
+    CARD_COUNTRY = member(lambda x: x)
+    CARD_TYPE = member(lambda x: x)
+    PAY_WAY = member(lambda x: PayWay(x))
+    RECEIVER_CARD = member(lambda x: x)
+    RECEIVER_OKPO = member(lambda x: int(x) if x else None)
+    REFUND_AMOUNT = member(lambda x: Decimal(x) if x else None)
+    REFUND_DATE_LAST = member(lambda x: to_datetime(x) if x else None)
+    REFUND_RESERVE_IDS = member(lambda x: map(lambda v: v.strip(), x.split("|")) if x else [])
+    RESERVE_REFUND_ID = member(lambda x: int(x) if x else None)
+    RESERVE_PAYMENT_ID = member(lambda x: int(x) if x else None)
+    RESERVE_AMOUNT = member(lambda x: Decimal(x) if x else None)
+    RESERVE_DATE = member(lambda x: to_datetime(x) if x else None)
+    COMPLETION_DATE = member(lambda x: to_datetime(x) if x else None)
+    INFO = member(lambda x: x)
+    LIQPAY_ORDER_ID = member(lambda x: x if x else None)
+    COMPENSATION_ID = member(lambda x: x if x else None)
+    COMPENSATION_DATE = member(lambda x: to_datetime(x) if x else None)
+    BONUSPLUS_ACCOUNT = member(lambda x: x if x else None)
+    BONUS_TYPE = member(lambda x: x if x else None)
+    BONUS_PERCENT = member(lambda x: Decimal(x) if x else None)
+    BONUS_AMOUNT = member(lambda x: Decimal(x) if x else None)
 
 
 class Currency(StrEnum):
@@ -27,6 +74,10 @@ class Status(StrEnum):
     ERROR = auto()
     FAILURE = auto()
     REVERSED = auto()
+
+    # subscription statuses
+    SUBSCRIBED = auto()
+    UNSUBSCRIBED = auto()
 
     # statuses that required payment confirmation
     VERIFY_3DS = "3ds_verify"
@@ -70,11 +121,29 @@ class PayWay(StrEnum):
     INVOICE = auto()
     QR = auto()
 
+    # Google Pay
+    GPAY = auto()
+
+    # Google Pay Card
+    GPAYCARD = auto()
+
+    # Apple Pay
+    APAY = auto()
+
 
 class Code(StrEnum):
-    UNKNOWN = auto()
+    ERR_BLOCKED = auto()
+    ERR_CARD_BIN = auto()
+    ERR_TOKEN_DECODE = auto()
 
+    # expired codes
     EXPIRED = auto()
+    EXPIRED_P24 = auto()
+    EXPIRED_3DS = auto()
+
+    MPI = auto()
+
+    E4 = "4"
 
     # financial errors
     E90 = "90"
@@ -108,69 +177,84 @@ class Code(StrEnum):
     E9867 = "9867"
     E9868 = "9868"
     E9872 = "9872"
+    E9875 = "9875"
     E9882 = "9882"
     E9886 = "9886"
     E9961 = "9961"
     E9989 = "9989"
 
-@dataclass(frozen=True, slots=True, eq=False)
+
+@dataclass(frozen=True, eq=False, slots=True)
 class Report:
-    id: int = field(repr=True)
-    shop_order_id: str = field(repr=True)
-    liqpay_order_id: str = field(repr=False)
+    """
+    Dataclass model for a LiqPay report comma-separated entry (CSV)
+    """
 
-    amount: Decimal = field(repr=True)
-    currency: Currency = field(repr=True)
+    id: int
+    shop_order_id: str
+    liqpay_order_id: str
 
-    sender_commission: Decimal = field(repr=False)
-    receiver_commission: Decimal = field(repr=False)
-    agent_commission: Decimal = field(repr=False)
+    amount: Decimal
+    currency: Currency
 
-    amount_credit: Decimal = field(repr=False)
-    comission_credit: Decimal = field(repr=False)
-    currency_credit: Decimal = field(repr=False)
+    sender_commission: Decimal
+    receiver_commission: Decimal
+    agent_commission: Decimal
 
-    create_date: datetime = field(repr=True)
-    end_date: datetime = field(repr=True)
+    create_date: datetime
+    end_date: datetime
 
-    type: str = field(repr=True)
+    type: str
 
-    status: Status = field(repr=True)
-    status_err_code: Code | None = field(repr=False)
+    status: Status
 
-    auth_code: Any = field(repr=False)
-    description: str = field(repr=False)
-    phone: str = field(repr=True)
+    description: str
+    phone: str
 
-    sender_country_code: str = field(repr=False)
-    card: str = field(repr=False)
-    issuer_bank: str = field(repr=False)
-    card_country: str = field(repr=False)
-    card_type: str = field(repr=False)
-    pay_way: PayWay = field(repr=False)
+    sender_country_code: str
+    card: str
+    issuer_bank: str
+    card_country: str
+    card_type: str
+    pay_way: PayWay
 
-    receiver_card: str = field(repr=False)
-    receiver_okpo: int = field(repr=False)
+    receiver_card: str
+    receiver_okpo: int
 
-    refund_amount: Decimal | None = field(repr=False)
-    refund_date_last: datetime | None = field(repr=False)
-    refund_reserve_ids: Any = field(repr=False)
+    info: str
 
-    reserve_refund_id: int | None = field(repr=False)
-    reserve_payment_id: int | None = field(repr=False)
-    reserve_amount: Decimal | None = field(repr=False)
-    reserve_date: datetime | None = field(repr=False)
+    amount_credit: Decimal | None = None
+    comission_credit: Decimal | None = None
+    currency_credit: Currency | None = None
 
-    completion_date: datetime | None = field(repr=False)
-    info: str = field(repr=False)
+    auth_code: str | None = None
 
-    compensation_id: str | None = field(repr=False)
-    compensation_date: datetime | None = field(repr=False)
+    status_err_code: Code | None = None
 
-    bonusplus_account: str | None = field(repr=False)
-    bonus_type: str | None = field(repr=False)
-    bonus_percent: Decimal | None = field(repr=False)
-    bonus_amount: Decimal | None = field(repr=False)
+    refund_amount: Decimal | None = None
+    refund_date_last: datetime | None = None
+    refund_reserve_ids: list[str] = []
 
-    def __post_init__(self):
-        pass
+    reserve_refund_id: int | None = None
+    reserve_payment_id: int | None = None
+    reserve_amount: Decimal | None = None
+    reserve_date: datetime | None = None
+
+    completion_date: datetime | None = None
+
+    compensation_id: str | None = None
+    compensation_date: datetime | None = None
+
+    bonusplus_account: str | None = None
+    bonus_type: str | None = None
+    bonus_percent: Decimal | None = None
+    bonus_amount: Decimal | None = None
+
+    @classmethod
+    def from_dict(cls: Self, data: dict[str, str]) -> Self:
+        """
+        Create a new instance from a dictionary of strings
+
+        Useful
+        """
+        return cls(**{k.lower(): Field[k].value(v) for k, v in data.items()})
