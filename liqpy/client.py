@@ -151,7 +151,7 @@ class Client:
         self._private_key = secret(private_key.encode())
 
         warn(
-            "Using %s LiqPay API" % "sandbox" if sandbox else "live",
+            "Using %s LiqPay API" % ("sandbox" if sandbox else "live"),
             stacklevel=2,
             category=LiqPyWarning,
         )
