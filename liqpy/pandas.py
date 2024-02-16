@@ -5,6 +5,7 @@ from pandas import (
     CategoricalDtype,
     StringDtype,
     DataFrame,
+    NA,
 )
 
 from liqpy.models.report import Currency, Status, Action, Code, PayWay
@@ -50,7 +51,7 @@ COLUMN_TYPES = {
     "RECEIVER_OKPO": ID_TYPE,
     "REFUND_AMOUNT": FLOAT_TYPE,
     "REFUND_DATE_LAST": STRING_TYPE,
-    "REFUND_RESERVE_IDS": STRING_TYPE,
+    # "REFUND_RESERVE_IDS": STRING_TYPE,
     "RESERVE_REFUND_ID": ID_TYPE,
     "RESERVE_PAYMENT_ID": ID_TYPE,
     "RESERVE_AMOUNT": FLOAT_TYPE,
@@ -67,6 +68,13 @@ COLUMN_TYPES = {
 }
 
 DATE_COLUMNS = [key for key in COLUMN_TYPES.keys() if "_DATE" in key]
+
+
+def parse_refund_reserve_ids(x):
+    if x:
+        return frozenset(map(lambda v: int(v), x.split("|")))
+    else:
+        return NA
 
 
 def read_liqpay_csv(source, **kwargs) -> DataFrame:
@@ -86,5 +94,6 @@ def read_liqpay_csv(source, **kwargs) -> DataFrame:
         parse_dates=DATE_COLUMNS,
         date_format=DATE_FORMAT,
         index_col="ID",
+        converters={"REFUND_RESERVE_IDS": parse_refund_reserve_ids},
         **kwargs,
     )
