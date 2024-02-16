@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Self
+from typing import Self
 from enum import StrEnum, auto, Enum, member
 from datetime import datetime
 from dataclasses import dataclass
@@ -36,7 +36,9 @@ class Field(Enum):
     RECEIVER_OKPO = member(lambda x: int(x) if x else None)
     REFUND_AMOUNT = member(lambda x: Decimal(x) if x else None)
     REFUND_DATE_LAST = member(lambda x: to_datetime(x) if x else None)
-    REFUND_RESERVE_IDS = member(lambda x: map(lambda v: v.strip(), x.split("|")) if x else [])
+    REFUND_RESERVE_IDS = member(
+        lambda x: frozenset(map(lambda v: v.strip(), x.split("|")) if x else [])
+    )
     RESERVE_REFUND_ID = member(lambda x: int(x) if x else None)
     RESERVE_PAYMENT_ID = member(lambda x: int(x) if x else None)
     RESERVE_AMOUNT = member(lambda x: Decimal(x) if x else None)
@@ -233,7 +235,7 @@ class Report:
 
     refund_amount: Decimal | None = None
     refund_date_last: datetime | None = None
-    refund_reserve_ids: list[str] = []
+    refund_reserve_ids: frozenset[str] = frozenset()
 
     reserve_refund_id: int | None = None
     reserve_payment_id: int | None = None
