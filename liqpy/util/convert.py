@@ -1,11 +1,13 @@
 from typing import overload, TYPE_CHECKING
 from functools import singledispatch
 from numbers import Number
-from datetime import datetime, UTC, timedelta, date
+from datetime import datetime, timedelta, date
+
+from liqpy.constants import LIQPAY_TZ
 
 
-def from_milliseconds(value: int) -> datetime:
-    return datetime.fromtimestamp(value / 1000)
+def from_milliseconds(value: int, tz=LIQPAY_TZ) -> datetime:
+    return datetime.fromtimestamp(value / 1000, tz=tz)
 
 
 @singledispatch
@@ -54,12 +56,12 @@ def _(value: str, **kwargs):
 
 
 @to_datetime.register
-def _(value: Number, tz=UTC, **kwargs):
+def _(value: Number, tz=LIQPAY_TZ, **kwargs):
     return datetime.fromtimestamp(float(value), tz=tz)
 
 
 @to_datetime.register
-def _(value: timedelta, tz=UTC, **kwargs):
+def _(value: timedelta, tz=LIQPAY_TZ, **kwargs):
     return datetime.now(tz) + value
 
 

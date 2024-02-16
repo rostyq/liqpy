@@ -408,10 +408,11 @@ class Client:
         Get an archive of recieved payments
 
         Example to get a json archive for the last 30 days:
-        >>> from datetime import datetime, timedelta, UTC
+        >>> from datetime import datetime, timedelta
         >>> from liqpy.client import Client
+        >>> from liqpy.constants import LIQPAY_TZ
         >>> client = Client()
-        >>> date_to = datetime.now(UTC)
+        >>> date_to = datetime.now(LIQPAY_TZ)
         >>> date_from = date_to - timedelta(days=30)
         >>> result = client.reports(date_from, date_to, format="csv")
         >>> print(result)
