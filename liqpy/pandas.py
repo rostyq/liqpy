@@ -8,6 +8,7 @@ from pandas import (
 )
 
 from liqpy.models.report import Currency, Status, Action, Code, PayWay
+from liqpy.constants import DATE_FORMAT
 
 ID_TYPE = UInt64Dtype()
 STRING_TYPE = StringDtype()
@@ -66,8 +67,6 @@ COLUMN_TYPES = {
 }
 
 DATE_COLUMNS = [key for key in COLUMN_TYPES.keys() if "_DATE" in key]
-
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def read_liqpay_csv(source, **kwargs) -> DataFrame:

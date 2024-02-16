@@ -9,6 +9,7 @@ from decimal import Decimal
 from datetime import date, datetime, UTC
 
 from liqpy.models.request import FiscalItem, DetailAddenda, SplitRule
+from liqpy.constants import DATE_FORMAT
 
 
 __all__ = ("Encoder", "JSONEncoder")
@@ -17,7 +18,7 @@ __all__ = ("Encoder", "JSONEncoder")
 class Encoder(JSONEncoder):
     """Custom JSON encoder for LiqPay API requests"""
 
-    date_fmt = r"%Y-%m-%d %H:%M:%S"
+    date_fmt = DATE_FORMAT
 
     def __init__(self) -> None:
         super().__init__(
