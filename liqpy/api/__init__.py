@@ -9,6 +9,8 @@ from json import loads, JSONEncoder
 
 from datetime import datetime, UTC
 
+from liqpy.constants import URL, VERSION
+
 from .encoder import Encoder, JSONEncoder
 from .decoder import Decoder, JSONDecoder
 from .preprocess import Preprocessor, BasePreprocessor
@@ -24,9 +26,6 @@ if TYPE_CHECKING:
 
 
 __all__ = ("Endpoint", "post", "sign", "encode", "decode", "request")
-
-URL = "https://www.liqpay.ua"
-VERSION = 3
 
 
 class Endpoint(Enum):
