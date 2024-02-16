@@ -6,10 +6,10 @@ from json import JSONEncoder
 
 from uuid import UUID
 from decimal import Decimal
-from datetime import date, datetime, UTC
+from datetime import date, datetime
 
 from liqpy.models.request import FiscalItem, DetailAddenda, SplitRule
-from liqpy.constants import DATE_FORMAT
+from liqpy.constants import DATE_FORMAT, LIQPAY_TZ
 
 
 __all__ = ("Encoder", "JSONEncoder")
@@ -19,6 +19,8 @@ class Encoder(JSONEncoder):
     """Custom JSON encoder for LiqPay API requests"""
 
     date_fmt = DATE_FORMAT
+
+    tz = LIQPAY_TZ
 
     def __init__(self) -> None:
         super().__init__(
@@ -42,7 +44,7 @@ class Encoder(JSONEncoder):
 
     @default.register
     def _(self, o: datetime) -> str:
-        return o.astimezone(UTC).strftime(self.date_fmt)
+        return o.astimezone(self.tz).strftime(self.date_fmt)
 
     @default.register
     def _(self, o: date) -> str:
