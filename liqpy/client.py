@@ -226,7 +226,7 @@ class Client:
         """
         assert self.is_valid(data, signature), "Invalid signature"
 
-    def request(self, action: str, **kwargs: "LiqpayRequestDict") -> dict:
+    def request(self, /, action: str, **kwargs: "LiqpayRequestDict") -> dict:
         """
         Make a Server-Server request to LiqPay API
         """
