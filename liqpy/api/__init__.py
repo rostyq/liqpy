@@ -7,9 +7,9 @@ from base64 import b64encode, b64decode
 from hashlib import sha1
 from json import loads, JSONEncoder
 
-from datetime import datetime, UTC
+from datetime import datetime
 
-from liqpy.constants import URL, VERSION
+from liqpy.constants import URL, VERSION, LIQPAY_TZ
 
 from .encoder import Encoder, JSONEncoder
 from .decoder import Decoder, JSONDecoder
@@ -199,7 +199,7 @@ def request(
             subscribe_date_start = params.get("subscribe_date_start")
 
             if subscribe_date_start is None:
-                subscribe_date_start = datetime.now(UTC)
+                subscribe_date_start = datetime.now(LIQPAY_TZ)
             
             assert "subscribe_periodicity" in params, "subscribe_periodicity is required"
 
