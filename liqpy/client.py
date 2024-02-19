@@ -490,10 +490,10 @@ class Client:
         """
         return self.request("data", opid=opid, info=info)
 
-    def receipt(
+    def ticket(
         self,
         /,
-        order_id: str,
+        order_id: str | UUID,
         email: str,
         *,
         payment_id: Optional[int] = None,
@@ -505,7 +505,7 @@ class Client:
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/ticket/doc)
         """
         self.request(
-            "receipt",
+            "ticket",
             order_id=order_id,
             email=email,
             payment_id=payment_id,
