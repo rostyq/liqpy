@@ -307,15 +307,9 @@ class Client:
         """
         Make a refund request to LiqPay API
 
-        For recurring payments `payment_id` parameter is required, in other cases use `order_id`.
+        Use `payment_id` (`int` type) to refund from recurring payments.
         """
-        match (order_id, payment_id):
-            case (_, payment_id) if payment_id is not None:
-                return self.request("refund", payment_id=str(payment_id), amount=amount)
-            case (order_id, None) if order_id is not None:
-                return self.request("refund", order_id=order_id, amount=amount)
-            case (None, None):
-                raise ValueError("`order_id` or `payment_id` must be provided")
+        return self.request("refund", opid=opid, amount=amount)
 
     def complete(
         self, /, order_id: str | UUID, *, amount: Number | None = None
@@ -488,13 +482,13 @@ class Client:
             **kwargs,
         )
 
-    def data(self, /, order_id: str, info: str) -> "LiqpayCallbackDict":
+    def data(self, /, opid: str | int | UUID, *, info: str) -> "LiqpayCallbackDict":
         """
         Adding an info to already created payment
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/data/doc)
         """
-        return self.request("data", order_id=order_id, info=info)
+        return self.request("data", opid=opid, info=info)
 
     def receipt(
         self,
@@ -518,13 +512,13 @@ class Client:
             language=language,
         )
 
-    def status(self, order_id: str | UUID, /) -> "LiqpayCallbackDict":
+    def status(self, opid: int | str | UUID, /) -> "LiqpayCallbackDict":
         """
         Get the status of a payment
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/information/status/doc)
         """
-        return self.request("status", order_id=order_id)
+        return self.request("status", opid=opid)
 
     def callback(self, /, data: AnyStr, signature: AnyStr, *, verify: bool = True):
         """

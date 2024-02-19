@@ -103,7 +103,9 @@ class LiqpayRequestDict(
     ProductDict,
     total=False,
 ):
+    opid: str | int
     order_id: str | UUID
+    payment_id: int
     amount: Number | str
     rro_info: FiscalInfoDict | FiscalInfo
     expired_date: str | datetime | timedelta

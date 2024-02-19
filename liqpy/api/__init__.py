@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, AnyStr, Optional, Unpack
 
 from enum import Enum
+from uuid import UUID
 
 from urllib.parse import urljoin
 from base64 import b64encode, b64decode
@@ -193,6 +194,12 @@ def request(
     {'action': 'status', 'public_key': '...', 'version': 3, 'order_id': 'a1a1a1a1'}
     """
     params.update(action=action, public_key=public_key, version=version)
+
+    liqpay_id = params.pop("opid", None)
+    if isinstance(liqpay_id, (str, UUID)):
+        params.setdefault("order_id", liqpay_id)
+    elif isinstance(liqpay_id, int):
+        params.setdefault("payment_id", str(liqpay_id))
 
     match action:
         case "subscribe":
