@@ -32,7 +32,7 @@ from .api import (
 
 if TYPE_CHECKING:
     from .types.common import Language, Currency, SubscribePeriodicity, PayOption
-    from .types.request import Format, Language, LiqpayRequestDict
+    from .types.request import Format, Language, LiqpayRequestDict, Action
     from .types.callback import LiqpayCallbackDict, LiqpayRefundDict
 
 
@@ -226,7 +226,7 @@ class Client:
         """
         assert self.is_valid(data, signature), "Invalid signature"
 
-    def request(self, /, action: str, **kwargs: "LiqpayRequestDict") -> dict:
+    def request(self, /, action: "Action", **kwargs: "LiqpayRequestDict") -> dict:
         """
         Make a Server-Server request to LiqPay API
         """
