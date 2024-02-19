@@ -19,7 +19,7 @@ class Field(Enum):
     CURRENCY_CREDIT = member(lambda x: Currency(x) if x else None)
     CREATE_DATE = member(lambda x: to_datetime(x))
     END_DATE = member(lambda x: to_datetime(x))
-    TYPE = member(lambda x: x)
+    TYPE = member(lambda x: Type(x))
     STATUS = member(lambda x: Status(x))
     STATUS_ERR_CODE = member(lambda x: Code(x) if x else None)
     AUTH_CODE = member(lambda x: x if x else None)
@@ -27,12 +27,12 @@ class Field(Enum):
     DESCRIPTION = member(lambda x: x)
     PHONE = member(lambda x: x if x else None)
     SENDER_COUNTRY_CODE = member(lambda x: x if x else None)
-    CARD = member(lambda x: x)
-    ISSUER_BANK = member(lambda x: x)
-    CARD_COUNTRY = member(lambda x: x)
-    CARD_TYPE = member(lambda x: x)
-    PAY_WAY = member(lambda x: PayWay(x))
-    RECEIVER_CARD = member(lambda x: x)
+    CARD = member(lambda x: x if x else None)
+    ISSUER_BANK = member(lambda x: x if x else None)
+    CARD_COUNTRY = member(lambda x: x if x else None)
+    CARD_TYPE = member(lambda x: x if x else None)
+    PAY_WAY = member(lambda x: PayWay(x) if x else None)
+    RECEIVER_CARD = member(lambda x: x if x else None)
     RECEIVER_OKPO = member(lambda x: int(x) if x else None)
     REFUND_AMOUNT = member(lambda x: Decimal(x) if x else None)
     REFUND_DATE_LAST = member(lambda x: to_datetime(x) if x else None)
@@ -137,6 +137,9 @@ class Code(StrEnum):
     ERR_BLOCKED = auto()
     ERR_CARD_BIN = auto()
     ERR_TOKEN_DECODE = auto()
+    ERR_MISSING = auto()
+
+    LIMIT = auto()
 
     # expired codes
     EXPIRED = auto()
@@ -186,6 +189,10 @@ class Code(StrEnum):
     E9989 = "9989"
 
 
+class Type(StrEnum):
+    ACQUIRING = auto()
+
+
 @dataclass(frozen=True, eq=False, slots=True)
 class Report:
     """
@@ -206,24 +213,27 @@ class Report:
     create_date: datetime
     end_date: datetime
 
-    type: str
+    type: Type
 
     status: Status
 
     description: str
-    phone: str
 
-    sender_country_code: str
-    card: str
-    issuer_bank: str
-    card_country: str
-    card_type: str
-    pay_way: PayWay
+    receiver_card: str | None = None
+    receiver_okpo: int | None = None
 
-    receiver_card: str
-    receiver_okpo: int
+    card: str | None = None
+    issuer_bank: str | None = None
+    card_country: str | None = None
+    card_type: str | None = None
 
-    info: str
+    info: str = ""
+
+    phone: str | None = None
+
+    sender_country_code: str | None = None
+
+    pay_way: PayWay | None = None
 
     amount_credit: Decimal | None = None
     comission_credit: Decimal | None = None
@@ -253,7 +263,7 @@ class Report:
     bonus_amount: Decimal | None = None
 
     @classmethod
-    def from_dict(cls: Self, data: dict[str, str]) -> Self:
+    def from_dict(cls, data: dict[str, str]) -> "Report":
         """
         Create a new instance from a dictionary of strings
 
