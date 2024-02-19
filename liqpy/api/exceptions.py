@@ -21,6 +21,7 @@ TRANSLATIONS = {
     "Платеж не найден": "Payment not found",
     "Превышен лимит суммы": "The amount limit has been exceeded",
     "Неверный статус платежа": "Invalid payment status",
+    "Платеж не является регулярным": "Payment is not regular",
 }
 
 
