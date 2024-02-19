@@ -317,14 +317,16 @@ class Client:
         return self.request("refund", opid=opid, amount=amount)
 
     def complete(
-        self, /, order_id: str | UUID, *, amount: Number | None = None
+        self, /, opid: int | str | UUID, *, amount: Number | None = None
     ) -> "LiqpayCallbackDict":
         """
         Request a `hold_completion` action from LiqPay API
 
+        Use `liqpy.client.Client.hold` to request a hold action.
+
         [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold_completion/doc)
         """
-        return self.request("hold_completion", order_id=order_id, amount=amount)
+        return self.request("hold_completion", opid=opid, amount=amount)
 
     def checkout(
         self,
