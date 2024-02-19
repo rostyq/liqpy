@@ -84,10 +84,19 @@ def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
     """Get exception class by error code"""
     if code is None or code == "unknown":
         return LiqPayException
-    elif code in ("limit", "frod", "decline"):
-        return LiqPayAntiFraudException
     elif code.isdigit() and code != "5":
         return LiqPayFinancialException
+    elif code in ("limit", "frod", "decline"):
+        return LiqPayAntiFraudException
+    elif code in (
+        "err_action",  # is not documented in the official API
+        "invalid_signature",
+        "public_key_not_found",
+        "order_id_empty",
+        "amount_limit",
+        "wrong_amount_currency",
+    ):
+        return LiqPayRequestException
     elif code.startswith("expired_"):
         return LiqPayExpireException
     elif code.startswith("err_"):
@@ -98,14 +107,6 @@ def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
         return LiqPayNonFinancialException
     elif code.startswith("payment_"):
         return LiqPayExpireException
-    elif code in (
-        "invalid_signature",
-        "public_key_not_found",
-        "order_id_empty",
-        "amount_limit",
-        "wrong_amount_currency",
-    ):
-        return LiqPayRequestException
     else:
         return LiqPayException
 

@@ -6,6 +6,7 @@ UnknownErrcode = _Literal["unknown"]
 LiqpayAntiFraudErrcode = _Literal["limit", "frod", "decline"]
 
 LiqpayRequestErrcode = _Literal[
+    "err_action",
     "invalid_signature",
     "public_key_not_found",
     "order_id_empty",
