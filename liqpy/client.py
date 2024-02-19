@@ -294,6 +294,39 @@ class Client:
             **kwargs,
         )
 
+    def hold(
+        self,
+        /,
+        amount: Number,
+        order_id: str | UUID,
+        card: str,
+        card_cvv: str,
+        card_exp_month: str,
+        card_exp_year: str,
+        currency: "Currency",
+        description: str,
+        **kwargs: "LiqpayRequestDict",
+    ) -> "LiqpayCallbackDict":
+        """
+        Request a `hold` action from LiqPay API
+
+        Use `liqpy.client.Client.complete` to complete the hold.
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold/doc)
+        """
+        return self.request(
+            "hold",
+            order_id=order_id,
+            amount=amount,
+            card=card,
+            card_cvv=card_cvv,
+            card_exp_month=card_exp_month,
+            card_exp_year=card_exp_year,
+            currency=currency,
+            description=description,
+            **kwargs,
+        )
+
     def unsubscribe(self, /, opid: int | str | UUID) -> "LiqpayCallbackDict":
         """
         Cancel recurring payments for the order
