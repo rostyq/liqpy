@@ -323,8 +323,9 @@ class Client:
 
     def checkout(
         self,
-        action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
         /,
+        action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
+        *,
         order_id: str | UUID,
         amount: Number,
         currency: "Currency",
