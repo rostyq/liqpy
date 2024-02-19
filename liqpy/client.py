@@ -288,20 +288,19 @@ class Client:
             **kwargs,
         )
 
-    def unsubscribe(self, /, order_id: str | UUID) -> "LiqpayCallbackDict":
+    def unsubscribe(self, /, opid: int | str | UUID) -> "LiqpayCallbackDict":
         """
         Cancel recurring payments for the order
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/unsubscribe/doc)
         """
-        return self.request("unsubscribe", order_id=order_id)
+        return self.request("unsubscribe", opid=opid)
 
     def refund(
         self,
         /,
-        payment_id: int | None = None,
+        opid: int | str | UUID,
         *,
-        order_id: str | UUID | None = None,
         amount: Number | None = None,
     ) -> "LiqpayRefundDict":
         """
