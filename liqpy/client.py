@@ -174,7 +174,11 @@ class Client:
         if verify:
             self.verify(data, signature)
         else:
-            warn("Skipping LiqPay signature verification", stacklevel=2, category=LiqPyWarning)
+            warn(
+                "Skipping LiqPay signature verification",
+                stacklevel=2,
+                category=LiqPyWarning,
+            )
 
         return decode(data)
 
