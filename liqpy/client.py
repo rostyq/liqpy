@@ -523,6 +523,30 @@ class Client:
             **kwargs,
         )
 
+    def subscription(
+        self,
+        /,
+        order_id: str | UUID,
+        *,
+        amount: Number,
+        currency: "Currency",
+        description: str,
+        **kwargs: Unpack["LiqpayRequestDict"],
+    ) -> "LiqpayCallbackDict":
+        """
+        Edit an existing recurring payment
+
+        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe_update/doc)
+        """
+        return self.request(
+            "subscribe_update",
+            order_id=order_id,
+            amount=amount,
+            currency=currency,
+            description=description,
+            **kwargs
+        )
+
     def data(self, /, opid: str | int | UUID, *, info: str) -> "LiqpayCallbackDict":
         """
         Adding an info to already created payment
