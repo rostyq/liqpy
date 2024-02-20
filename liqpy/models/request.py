@@ -33,6 +33,17 @@ class DetailAddenda:
             departure_date=date(2000 + int(s[:2]), int(s[2:4]), int(s[4:])),
         )
 
+    def to_json(self):
+        return {
+            "airLine": self.air_line,
+            "ticketNumber": self.ticket_number,
+            "passengerName": self.passenger_name,
+            "flightNumber": self.flight_number,
+            "originCity": self.origin_city,
+            "destinationCity": self.destination_city,
+            "departureDate": self.departure_date.strftime(r"%y%m%d"),
+        }
+
 
 @dataclass(kw_only=True)
 class SplitRule:

@@ -63,17 +63,7 @@ class Encoder(JSONEncoder):
 
     @default.register
     def _(self, o: DetailAddenda) -> str:
-        data = {
-            "airLine": o.air_line,
-            "ticketNumber": o.ticket_number,
-            "passengerName": o.passenger_name,
-            "flightNumber": o.flight_number,
-            "originCity": o.origin_city,
-            "destinationCity": o.destination_city,
-            "departureDate": o.departure_date.strftime(r"%y%m%d"),
-        }
-
-        return b64encode(self.encode(data).encode()).decode()
+        return b64encode(self.encode(o.to_json()).encode()).decode()
 
     @default.register
     def _(self, o: SplitRule) -> dict:
