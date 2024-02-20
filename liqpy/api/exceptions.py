@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 UNKNOWN_ERRCODE = "unknown"
 UNKNOWN_ERRMSG = "Unknown error"
 
+# just collecting pokemons
+# catch them all!
 TRANSLATIONS = {
     "Платеж не найден": "Payment not found",
     "Превышен лимит суммы": "The amount limit has been exceeded",
