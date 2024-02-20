@@ -9,6 +9,8 @@ from pytest import fixture
 from liqpy.api import Encoder
 from liqpy.models.request import DetailAddenda
 
+from tests import EXAMPLES_DIR
+
 
 @fixture
 def encoder():
@@ -56,21 +58,9 @@ def test_encode_decimal(encoder: Encoder):
 
 
 def test_encode_dae(encoder: Encoder):
-    dae = DetailAddenda(
-        air_line="Avia",
-        ticket_number="ACSFD12354SA",
-        passenger_name="John Doe",
-        flight_number="742",
-        origin_city="DP",
-        destination_city="NY",
-        departure_date=date(2014, 5, 10),
-    )
-    assert loads(b64decode(encoder.encode(dae).encode()).decode()) == {
-        "airLine": "Avia",
-        "ticketNumber": "ACSFD12354SA",
-        "passengerName": "John Doe",
-        "flightNumber": "742",
-        "originCity": "DP",
-        "destinationCity": "NY",
-        "departureDate": "100514",
-    }
+    with open(EXAMPLES_DIR / "dae.json") as f:
+        data = loads(f.read())
+
+    dae = DetailAddenda.from_json(data)
+
+    assert loads(b64decode(encoder.encode(dae).encode()).decode()) == data
