@@ -1,18 +1,17 @@
 from typing import TYPE_CHECKING, Optional
+from json import JSONEncoder, load
 
 from liqpy.models.request import DetailAddenda
 from liqpy.util.convert import to_datetime, to_milliseconds
 
 if TYPE_CHECKING:
-    from json import JSONEncoder
-
     from liqpy.types.request import LiqpayRequestDict
 
 
 class BasePreprocessor:
     """Base class for LiqPay API request preprocessor"""
     def __call__(
-        self, o: "LiqpayRequestDict", /, encoder: Optional["JSONEncoder"], **kwargs
+        self, o: "LiqpayRequestDict", /, encoder: Optional["JSONEncoder"] = None, **kwargs
     ):
         if encoder is None:
             encoder = JSONEncoder()
@@ -24,10 +23,7 @@ class BasePreprocessor:
                 if not callable(fn):
                     continue
 
-                processed = fn(value, encoder=encoder, **kwargs.get(key, {}))
-
-                if processed is not None:
-                    o[key] = processed
+                o[key] = fn(value, encoder=encoder, **kwargs.get(key, {}))
 
             except Exception as e:
                 raise Exception(f"Failed to convert {key} parameter.") from e
@@ -55,16 +51,28 @@ class Preprocessor(BasePreprocessor):
     def dae(self, value, /, **kwargs):
         if isinstance(value, DetailAddenda):
             return value
-        else:
+        elif isinstance(value, dict):
             return DetailAddenda(**value)
+        elif isinstance(value, str):
+            return DetailAddenda.from_json(load(value))
+        else:
+            raise TypeError("Invalid dae value type.")
 
     def split_rules(self, value, /, encoder: "JSONEncoder", **kwargs):
         if isinstance(value, list):
             return encoder.encode(value)
+        elif isinstance(value, str):
+            return value
+        else:
+            raise TypeError("Invalid split_rules value type.")
 
     def paytypes(self, value, /, **kwargs):
         if isinstance(value, list):
             return ",".join(value)
+        elif isinstance(value, str):
+            return value
+        else:
+            raise TypeError("Invalid paytypes value type.")
 
     def verifycode(self, value, /, **kwargs):
         if value:
