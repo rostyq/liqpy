@@ -551,7 +551,7 @@ class Client:
             amount=amount,
             currency=currency,
             description=description,
-            **kwargs
+            **kwargs,
         )
 
     def data(self, /, opid: str | int | UUID, *, info: str) -> "LiqpayCallbackDict":
