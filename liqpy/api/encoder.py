@@ -12,7 +12,10 @@ from liqpy.models.request import FiscalItem, DetailAddenda, SplitRule
 from liqpy.constants import DATE_FORMAT, LIQPAY_TZ
 
 
-__all__ = ("Encoder", "JSONEncoder")
+__all__ = ("Encoder", "JSONEncoder", "SEPARATORS")
+
+
+SEPARATORS = (",", ":")
 
 
 class Encoder(JSONEncoder):
@@ -30,7 +33,7 @@ class Encoder(JSONEncoder):
             allow_nan=False,
             sort_keys=False,
             indent=None,
-            separators=None,
+            separators=SEPARATORS,
             default=None,
         )
 
