@@ -12,7 +12,7 @@ from datetime import datetime
 
 from liqpy.constants import URL, VERSION, LIQPAY_TZ
 
-from .encoder import Encoder, JSONEncoder
+from .encoder import Encoder, JSONEncoder, SEPARATORS
 from .decoder import Decoder, JSONDecoder
 from .preprocess import Preprocessor, BasePreprocessor
 from .validation import Validator, BaseValidator
@@ -142,9 +142,9 @@ def encode(
     /,
     *,
     filter_none: bool = True,
-    validator: Optional[BaseValidator] = None,
     encoder: Optional[JSONEncoder] = None,
     preprocessor: Optional[BasePreprocessor] = None,
+    validator: Optional[BaseValidator] = None,
 ) -> bytes:
     """
     Encode parameters into base64 encoded JSON
@@ -156,17 +156,13 @@ def encode(
         params = {key: value for key, value in params.items() if value is not None}
 
     if encoder is None:
-        encoder = Encoder()
+        encoder = JSONEncoder(separators=SEPARATORS)
 
-    if preprocessor is None:
-        preprocessor = Preprocessor()
+    if preprocessor is not None:
+        preprocessor(params, encoder=encoder)
 
-    preprocessor(params, encoder=encoder)
-
-    if validator is None:
-        validator = Validator()
-
-    validator(params)
+    if validator is not None:
+        validator(params)
 
     return b64encode(encoder.encode(params).encode())
 
@@ -174,7 +170,7 @@ def encode(
 def decode(data: bytes, /, decoder: Optional[JSONDecoder] = None) -> dict[str, Any]:
     """Decode base64 encoded JSON"""
     if decoder is None:
-        decoder = Decoder()
+        decoder = JSONDecoder()
 
     return decoder.decode(b64decode(data).decode())
 
