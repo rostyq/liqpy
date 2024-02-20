@@ -67,7 +67,7 @@ class Encoder(JSONEncoder):
             "flightNumber": o.flight_number,
             "originCity": o.origin_city,
             "destinationCity": o.destination_city,
-            "departureDate": o.departure_date.strftime(r"%d%m%y"),
+            "departureDate": o.departure_date.strftime(r"%y%m%d"),
         }
 
         return b64encode(self.encode(data).encode()).decode()
