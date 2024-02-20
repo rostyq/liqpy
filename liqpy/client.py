@@ -28,6 +28,9 @@ from .api import (
     JSONEncoder,
     JSONDecoder,
     Decoder,
+    Encoder,
+    Preprocessor,
+    Validator,
 )
 
 if TYPE_CHECKING:
@@ -77,10 +80,10 @@ class Client:
     _public_key: str
     _private_key: Secret[bytes]
 
-    validator: Optional[BaseValidator] = None
-    preprocessor: Optional[BasePreprocessor] = None
-    encoder: Optional[JSONEncoder] = None
-    decoder: Optional[JSONDecoder] = None
+    validator: BaseValidator
+    preprocessor: BasePreprocessor
+    encoder: JSONEncoder
+    decoder: JSONDecoder
 
     def __init__(
         self,
@@ -97,10 +100,10 @@ class Client:
         self.update_keys(public_key=public_key, private_key=private_key)
         self.session = session
 
-        self.validator = validator
-        self.preprocessor = preprocessor
-        self.encoder = encoder
-        self.decoder = decoder
+        self.validator = validator if validator is not None else Validator()
+        self.preprocessor = preprocessor if preprocessor is not None else Preprocessor()
+        self.encoder = encoder if encoder is not None else Encoder()
+        self.decoder = decoder if decoder is not None else Decoder
 
     @property
     def public_key(self) -> str:
@@ -245,7 +248,7 @@ class Client:
         if not response.headers.get("Content-Type", "").startswith("application/json"):
             raise exception(response=response)
 
-        data: dict = response.json(cls=self.decoder or Decoder)
+        data: dict = response.json(cls=self.decoder)
 
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
