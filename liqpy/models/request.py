@@ -21,14 +21,15 @@ class DetailAddenda:
 
     @classmethod
     def from_json(cls, data: dict):
-        s: str = data["departureDate"]
+        s: str = data.get("departureDate") or data.get("departure_date")
         return cls(
-            air_line=data["airLine"],
-            ticket_number=data["ticketNumber"],
-            passenger_name=data["passengerName"],
-            flight_number=data["flightNumber"],
-            origin_city=data["originCity"],
-            destination_city=data["destinationCity"],
+            air_line=data.get("airLine") or data.get("air_line"),
+            ticket_number=data.get("ticketNumber") or data.get("ticket_number"),
+            passenger_name=data.get("passengerName") or data.get("passenger_name"),
+            flight_number=data.get("flightNumber") or data.get("flight_number"),
+            origin_city=data.get("originCity") or data.get("origin_city"),
+            destination_city=data.get("destinationCity")
+            or data.get("destination_city"),
             departure_date=date(2000 + int(s[:2]), int(s[2:4]), int(s[4:])),
         )
 
