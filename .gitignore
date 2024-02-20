@@ -2,3 +2,6 @@ __pycache__/
 /venv/
 .env
 .env.*
+
+*.csv
+*.xls
