@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Optional
-from json import JSONEncoder, load
+from json import JSONEncoder
 
 from liqpy.models.request import DetailAddenda
 from liqpy.util.convert import to_datetime, to_milliseconds
@@ -52,9 +52,9 @@ class Preprocessor(BasePreprocessor):
         if isinstance(value, DetailAddenda):
             return value
         elif isinstance(value, dict):
-            return DetailAddenda(**value)
+            return DetailAddenda.from_json(value)
         elif isinstance(value, str):
-            return DetailAddenda.from_json(load(value))
+            return value
         else:
             raise TypeError("Invalid dae value type.")
 
