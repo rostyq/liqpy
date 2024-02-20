@@ -1,9 +1,13 @@
 from datetime import datetime, timedelta
+from json import loads
 
 from pytest import fixture
 
 from liqpy.api import Preprocessor
-from liqpy.constants import LIQPAY_TZ, DATE_FORMAT
+from liqpy.models.request import DetailAddenda
+from liqpy.constants import LIQPAY_TZ
+
+from tests import EXAMPLES_DIR
 
 
 @fixture
@@ -73,4 +77,11 @@ def test_preprocess_verifycode(preprocessor: Preprocessor):
 
 
 def test_preprocess_detail_addenda(preprocessor: Preprocessor):
-    pass
+    with open(EXAMPLES_DIR / "dae.json") as f:
+        data = loads(f.read())
+
+    r = {"dae": data}
+    t = {"dae": DetailAddenda.from_json(data)}
+    preprocessor(r)
+
+    assert r == t
