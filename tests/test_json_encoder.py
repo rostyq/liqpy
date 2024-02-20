@@ -1,11 +1,13 @@
 from datetime import datetime, date, UTC, timezone, timedelta
 from uuid import UUID
 from decimal import Decimal
+from json import loads
+from base64 import b64decode
 
 from pytest import fixture
 
-from liqpy.api import Encoder, encode
-from liqpy.util import DetailAddenda
+from liqpy.api import Encoder
+from liqpy.models.request import DetailAddenda
 
 
 @fixture
@@ -25,19 +27,19 @@ def test_encode_date(encoder: Encoder):
 def test_encode_datetime(encoder: Encoder):
     assert (
         encoder.encode(datetime(2021, 1, 2, 3, 4, 5, tzinfo=UTC))
-        == '"2021-01-02 03:04:05"'
+        == '"2021-01-02 05:04:05"'
     )
     assert (
         encoder.encode(
             datetime(2021, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=3)))
         )
-        == '"2021-01-02 00:04:05"'
+        == '"2021-01-02 02:04:05"'
     )
     assert (
         encoder.encode(
             datetime(2021, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=-3)))
         )
-        == '"2021-01-02 06:04:05"'
+        == '"2021-01-02 08:04:05"'
     )
 
 
@@ -63,5 +65,12 @@ def test_encode_dae(encoder: Encoder):
         destination_city="NY",
         departure_date=date(2014, 5, 10),
     )
-    # TODO: verify
-    encoder.encode(dae)
+    assert loads(b64decode(encoder.encode(dae).encode()).decode()) == {
+        "airLine": "Avia",
+        "ticketNumber": "ACSFD12354SA",
+        "passengerName": "John Doe",
+        "flightNumber": "742",
+        "originCity": "DP",
+        "destinationCity": "NY",
+        "departureDate": "100514",
+    }
