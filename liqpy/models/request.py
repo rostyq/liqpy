@@ -19,6 +19,19 @@ class DetailAddenda:
     def __post_init__(self):
         self.departure_date = to_date(self.departure_date)
 
+    @classmethod
+    def from_json(cls, data: dict):
+        s: str = data["departureDate"]
+        return cls(
+            air_line=data["airLine"],
+            ticket_number=data["ticketNumber"],
+            passenger_name=data["passengerName"],
+            flight_number=data["flightNumber"],
+            origin_city=data["originCity"],
+            destination_city=data["destinationCity"],
+            departure_date=date(2000 + int(s[:2]), int(s[2:4]), int(s[4:])),
+        )
+
 
 @dataclass(kw_only=True)
 class SplitRule:
