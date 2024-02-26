@@ -13,14 +13,13 @@ pip install liqpy
 Create checkout link:
 
 ```python
-from uuid import uuid4
 from liqpy.client import Client
 
 client = Client(public_key=..., private_key=...)
 
 client.checkout(
     action="pay",
-    order_id=str(uuid4()),
+    order_id=...,
     amount=1,
     currency="USD",
     description="Payment Example",
