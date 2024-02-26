@@ -6,11 +6,10 @@ from uuid import UUID
 from urllib.parse import urljoin
 from base64 import b64encode, b64decode
 from hashlib import sha1
-from json import loads, JSONEncoder
 
 from datetime import datetime
 
-from liqpy.constants import URL, VERSION, LIQPAY_TZ
+from liqpy.constants import URL, VERSION
 
 from .encoder import Encoder, JSONEncoder, SEPARATORS
 from .decoder import Decoder, JSONDecoder
@@ -26,7 +25,20 @@ if TYPE_CHECKING:
     from liqpy.types.post import Hooks, Proxies, Timeout, Verify, Cert
 
 
-__all__ = ("Endpoint", "post", "sign", "encode", "decode", "request")
+__all__ = [
+    "Encoder",
+    "Decoder",
+    "Preprocessor",
+    "Validator",
+    "exception",
+    "Endpoint",
+    "is_sandbox",
+    "post",
+    "sign",
+    "encode",
+    "decode",
+    "request",
+]
 
 
 class Endpoint(Enum):
@@ -199,17 +211,11 @@ def request(
 
     match action:
         case "subscribe":
-            subscribe_date_start = params.get("subscribe_date_start")
-
-            if subscribe_date_start is None:
-                subscribe_date_start = datetime.now(LIQPAY_TZ)
-            
             assert "subscribe_periodicity" in params, "subscribe_periodicity is required"
+            params["subscribe"] = True
 
-            params.update(
-                subscribe=True,
-                subscribe_date_start=subscribe_date_start,
-            )
+            if params.get("subscribe_date_start") is None:
+                params["subscribe_date_start"] = datetime.now()
         
         case "letter_of_credit":
             params["letter_of_credit"] = True

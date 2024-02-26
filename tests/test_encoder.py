@@ -28,20 +28,20 @@ def test_encode_date(encoder: Encoder):
 
 def test_encode_datetime(encoder: Encoder):
     assert (
-        encoder.encode(datetime(2021, 1, 2, 3, 4, 5, tzinfo=UTC))
+        encoder.encode(datetime(2021, 1, 2, 5, 4, 5, tzinfo=UTC))
         == '"2021-01-02 05:04:05"'
     )
     assert (
         encoder.encode(
             datetime(2021, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=3)))
         )
-        == '"2021-01-02 02:04:05"'
+        == '"2021-01-02 00:04:05"'
     )
     assert (
         encoder.encode(
             datetime(2021, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=-3)))
         )
-        == '"2021-01-02 08:04:05"'
+        == '"2021-01-02 06:04:05"'
     )
 
 

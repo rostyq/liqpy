@@ -4,7 +4,6 @@ from datetime import datetime
 from ipaddress import IPv4Address
 
 from liqpy.api import Decoder
-from liqpy.constants import LIQPAY_TZ
 
 from tests import EXAMPLES_DIR
 
@@ -21,8 +20,8 @@ def test_decode_status_example(decoder: Decoder):
     with open(EXAMPLES_DIR / "status.json", "r") as fp:
         o: "LiqpayCallbackDict" = decoder.decode(fp.read())
 
-    assert o["create_date"] == datetime(2017, 8, 3, 13, 55, 16, 373000, tzinfo=LIQPAY_TZ)
-    assert o["end_date"] == datetime(2017, 8, 3, 13, 55, 29, 972000, tzinfo=LIQPAY_TZ)
+    assert o["create_date"] == datetime(2017, 8, 3, 13, 55, 16, 373000)
+    assert o["end_date"] == datetime(2017, 8, 3, 13, 55, 29, 972000)
     assert o["ip"] == IPv4Address("8.8.8.8")
 
     assert isinstance(o["version"], int)

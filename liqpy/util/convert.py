@@ -3,11 +3,9 @@ from functools import singledispatch
 from numbers import Number
 from datetime import datetime, timedelta, date
 
-from liqpy.constants import LIQPAY_TZ
 
-
-def from_milliseconds(value: int, tz=LIQPAY_TZ) -> datetime:
-    return datetime.fromtimestamp(value / 1000, tz=tz)
+def from_milliseconds(value: int) -> datetime:
+    return datetime.fromtimestamp(value / 1000)
 
 
 @singledispatch
@@ -56,13 +54,13 @@ def _(value: str, **kwargs):
 
 
 @to_datetime.register
-def _(value: Number, tz=LIQPAY_TZ, **kwargs):
-    return datetime.fromtimestamp(float(value), tz=tz)
+def _(value: Number, **kwargs):
+    return datetime.fromtimestamp(float(value))
 
 
 @to_datetime.register
-def _(value: timedelta, tz=LIQPAY_TZ, **kwargs):
-    return datetime.now(tz) + value
+def _(value: timedelta, **kwargs):
+    return datetime.now() + value
 
 
 @singledispatch

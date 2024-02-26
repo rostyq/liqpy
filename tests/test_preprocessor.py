@@ -5,7 +5,6 @@ from pytest import fixture
 
 from liqpy.api import Preprocessor
 from liqpy.models.request import DetailAddenda
-from liqpy.constants import LIQPAY_TZ
 
 from tests import EXAMPLES_DIR
 
@@ -16,7 +15,7 @@ def preprocessor():
 
 
 def test_preprocess_report_timerange(preprocessor: Preprocessor):
-    date_to = datetime.now(tz=LIQPAY_TZ)
+    date_to = datetime.now()
     date_from = date_to - timedelta(days=30)
 
     r = {"date_to": date_to, "date_from": date_from}
@@ -28,9 +27,9 @@ def test_preprocess_report_timerange(preprocessor: Preprocessor):
 
 def test_preprocess_dates(preprocessor: Preprocessor):
     t = {
-        "expired_date": datetime.now(tz=LIQPAY_TZ),
-        "subscribe_date_start": datetime.now(tz=LIQPAY_TZ),
-        "letter_of_credit_date": datetime.now(tz=LIQPAY_TZ),
+        "expired_date": datetime.now(),
+        "subscribe_date_start": datetime.now(),
+        "letter_of_credit_date": datetime.now(),
     }
 
     r = {k: v.isoformat() for k, v in t.items()}

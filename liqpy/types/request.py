@@ -53,7 +53,7 @@ class OneClickDict(TypedDict, total=False):
 
 class SubscribeDict(TypedDict, total=False):
     subscribe: Literal[1, True]
-    subscribe_date_start: str | datetime | timedelta
+    subscribe_date_start: str | datetime | timedelta | None
     subscribe_periodicity: SubscribePeriodicity
 
 
