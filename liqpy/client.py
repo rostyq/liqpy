@@ -183,7 +183,7 @@ class Client:
                 category=LiqPyWarning,
             )
 
-        return decode(data)
+        return decode(data, decoder=self.decoder)
 
     def sign(self, data: bytes, /) -> bytes:
         """
