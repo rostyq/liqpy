@@ -95,7 +95,7 @@ class Client:
         validator: Optional[BaseValidator] = None,
         preprocessor: Optional[BasePreprocessor] = None,
         encoder: Optional[JSONEncoder] = None,
-        decoder: Optional[Type[JSONDecoder]] = None,
+        decoder: Optional[JSONDecoder] = None,
     ):
         self.update_keys(public_key=public_key, private_key=private_key)
         self.session = session
@@ -103,7 +103,7 @@ class Client:
         self.validator = validator if validator is not None else Validator()
         self.preprocessor = preprocessor if preprocessor is not None else Preprocessor()
         self.encoder = encoder if encoder is not None else Encoder()
-        self.decoder = decoder if decoder is not None else Decoder
+        self.decoder = decoder if decoder is not None else Decoder()
 
     @property
     def public_key(self) -> str:
@@ -248,7 +248,7 @@ class Client:
         if not response.headers.get("Content-Type", "").startswith("application/json"):
             raise exception(response=response)
 
-        data: dict = response.json(cls=self.decoder)
+        data: dict = self.decoder.decode(response.text)
 
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
