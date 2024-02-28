@@ -7,7 +7,7 @@ LiqPy -- unofficial python library for [LiqPay API](https://www.liqpay.ua/docume
 > Short answer: Well, yes, but actually no.
 > 
 > Long answer: It depends on what production readiness means for you.
-> The Library still lacks some LiqPay's functionality and tests coverage,
+> Implementation still lacks some LiqPay's functionality and tests coverage,
 > but I, personally, use it in production.
 > It gets work done in a most pythonic way I see it.
 
