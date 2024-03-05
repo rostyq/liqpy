@@ -2,6 +2,15 @@
 
 LiqPy -- unofficial python library for [LiqPay API](https://www.liqpay.ua/documentation/api/home).
 
+> _Is it **production ready**?_
+>
+> Short answer: Well, yes, but actually no.
+> 
+> Long answer: It depends on what production readiness means for you.
+> Implementation still lacks some LiqPay's functionality and tests coverage,
+> but I, personally, use it in production.
+> It gets work done in a most pythonic way I see it.
+
 ## Installation
 
 ```shell
