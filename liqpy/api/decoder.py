@@ -16,11 +16,13 @@ class Decoder(JSONDecoder):
             strict=True,
             object_pairs_hook=None,
         )
-        self.create_date = from_milliseconds
-        self.end_date = from_milliseconds
-        self.completion_date = from_milliseconds
         self.mpi_eci = int
         self.ip = IPv4Address
+
+        self.create_date = from_milliseconds
+        self.end_date = from_milliseconds
+        self.reserve_date = from_milliseconds
+        self.completion_date = from_milliseconds
         self.refund_date_last = from_milliseconds
     
     def _object_hook(self, o: dict, /) -> dict:

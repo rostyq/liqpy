@@ -10,7 +10,7 @@ from liqpy.types.common import Currency, PayType, Language
 
 
 CallbackAction = Literal[
-    "pay", "hold", "paysplit", "subscribe", "paydonate", "auth", "regular"
+    "pay", "hold", "paysplit", "subscribe", "paydonate", "auth", "regular", "refund"
 ]
 ThreeDS = Literal[5, 6, 7]
 
@@ -50,6 +50,7 @@ class LiqpayCallbackDict(TypedDict, total=False):
     public_key: str
     receiver_commission: Number
     redirect_to: str
+    reserve_date: datetime
     refund_date_last: datetime
     rrn_credit: str
     rrn_debit: str
