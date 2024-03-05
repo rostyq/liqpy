@@ -1,11 +1,11 @@
 from typing import overload, TYPE_CHECKING
 from functools import singledispatch
 from numbers import Number
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, UTC
 
 
-def from_milliseconds(value: int) -> datetime:
-    return datetime.fromtimestamp(value / 1000)
+def from_milliseconds(value: int, tz=UTC) -> datetime:
+    return datetime.fromtimestamp(value / 1000, tz=tz)
 
 
 @singledispatch
