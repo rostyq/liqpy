@@ -18,6 +18,7 @@ ThreeDS = Literal[5, 6, 7]
 class LiqpayCallbackDict(TypedDict, total=False):
     acq_id: Number
     action: CallbackAction
+    type: Literal["buy", "hold", "regular"]
     agent_commission: Number
     amount: Number
     amount_bonus: Number
