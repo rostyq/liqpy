@@ -18,7 +18,7 @@ class Field(Enum):
     COMISSION_CREDIT = member(lambda x: Decimal(x) if x else None)
     CURRENCY_CREDIT = member(lambda x: Currency(x) if x else None)
     CREATE_DATE = member(lambda x: to_datetime(x))
-    END_DATE = member(lambda x: to_datetime(x))
+    END_DATE = member(lambda x: to_datetime(x) if x else None)
     TYPE = member(lambda x: Type(x))
     STATUS = member(lambda x: Status(x))
     STATUS_ERR_CODE = member(lambda x: Code(x) if x else None)
@@ -216,7 +216,7 @@ class Report:
     agent_commission: Decimal
 
     create_date: datetime
-    end_date: datetime
+    end_date: datetime | None = None
 
     type: Type
 
