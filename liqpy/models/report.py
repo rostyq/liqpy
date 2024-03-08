@@ -89,27 +89,32 @@ class Status(StrEnum):
     VERIFY_SENDER = "sender_verify"
 
     # other payment statuses
+    WAIT_HOLD = auto()
     WAIT_ACCEPT = auto()
     WAIT_SECURE = auto()
 
     def is_wait(self) -> bool:
-        return self in (Status.WAIT_ACCEPT, Status.WAIT_SECURE)
+        return self in (
+            self.__class__.WAIT_ACCEPT,
+            self.__class__.WAIT_SECURE,
+            self.__class__.WAIT_HOLD,
+        )
 
     def requires_confirmation(self) -> bool:
         return self in (
-            Status.VERIFY_3DS,
-            Status.VERIFY_CVV,
-            Status.VERIFY_OTP,
-            Status.VERIFY_RECEIVER,
-            Status.VERIFY_SENDER,
+            self.__class__.VERIFY_3DS,
+            self.__class__.VERIFY_CVV,
+            self.__class__.VERIFY_OTP,
+            self.__class__.VERIFY_RECEIVER,
+            self.__class__.VERIFY_SENDER,
         )
 
     def is_final(self) -> bool:
         return self in (
-            Status.SUCCESS,
-            Status.ERROR,
-            Status.FAILURE,
-            Status.REVERSED,
+            self.__class__.SUCCESS,
+            self.__class__.ERROR,
+            self.__class__.FAILURE,
+            self.__class__.REVERSED,
         )
 
 
