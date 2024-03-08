@@ -216,13 +216,14 @@ class Report:
     agent_commission: Decimal
 
     create_date: datetime
-    end_date: datetime | None = None
 
     type: Type
 
     status: Status
 
     description: str
+
+    end_date: datetime | None = None
 
     receiver_card: str | None = None
     receiver_okpo: int | None = None
