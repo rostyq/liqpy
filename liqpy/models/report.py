@@ -89,7 +89,7 @@ class Status(StrEnum):
     VERIFY_SENDER = "sender_verify"
 
     # other payment statuses
-    WAIT_HOLD = auto()
+    HOLD_WAIT = auto()
     WAIT_ACCEPT = auto()
     WAIT_SECURE = auto()
 
@@ -97,7 +97,7 @@ class Status(StrEnum):
         return self in (
             self.__class__.WAIT_ACCEPT,
             self.__class__.WAIT_SECURE,
-            self.__class__.WAIT_HOLD,
+            self.__class__.HOLD_WAIT,
         )
 
     def requires_confirmation(self) -> bool:
