@@ -133,6 +133,7 @@ LiqpayFinancialErrcode = Literal[
     "9882",
     "9886",
     "9961",
+    "9965",
     "9989",
 ]
 
