@@ -1,11 +1,11 @@
-from typing import Literal as _Literal, Union as _Union
+from typing import Literal, Union
 
 
-UnknownErrcode = _Literal["unknown"]
+UnknownErrcode = Literal["unknown"]
 
-LiqpayAntiFraudErrcode = _Literal["limit", "frod", "decline"]
+LiqpayAntiFraudErrcode = Literal["limit", "frod", "decline"]
 
-LiqpayRequestErrcode = _Literal[
+LiqpayRequestErrcode = Literal[
     "err_action",
     "invalid_signature",
     "public_key_not_found",
@@ -14,7 +14,7 @@ LiqpayRequestErrcode = _Literal[
     "wrong_amount_currency",
 ]
 
-LiqpayExpireErrcode = _Literal[
+LiqpayExpireErrcode = Literal[
     "expired_phone",
     "expired_3ds",
     "expired_otp",
@@ -31,7 +31,7 @@ LiqpayExpireErrcode = _Literal[
     "expired_qr",
 ]
 
-LiqpayPaymentErrcode = _Literal[
+LiqpayPaymentErrcode = Literal[
     "payment_err_sender_card",
     "payment_processing",
     "payment_err_status",
@@ -40,8 +40,8 @@ LiqpayPaymentErrcode = _Literal[
     "payment_err_type",
 ]
 
-LiqpayNonFinancialErrcode = _Union[
-    _Literal[
+LiqpayNonFinancialErrcode = Union[
+    Literal[
         "err_auth",
         "err_cache",
         "err_sms_send",
@@ -98,7 +98,7 @@ LiqpayNonFinancialErrcode = _Union[
     LiqpayPaymentErrcode,
 ]
 
-LiqpayFinancialErrcode = _Literal[
+LiqpayFinancialErrcode = Literal[
     "90",
     "101",
     "102",
@@ -136,7 +136,7 @@ LiqpayFinancialErrcode = _Literal[
     "9989",
 ]
 
-LiqPayErrcode = _Union[
+LiqPayErrcode = Union[
     UnknownErrcode,
     LiqpayAntiFraudErrcode,
     LiqpayFinancialErrcode,

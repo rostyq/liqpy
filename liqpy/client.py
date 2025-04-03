@@ -35,7 +35,7 @@ from .api import (
 
 if TYPE_CHECKING:
     from .types.common import Language, Currency, SubscribePeriodicity, PayOption
-    from .types.request import Format, Language, LiqpayRequestDict, Action
+    from .types.request import Format, LiqpayRequestDict, Action
     from .types.callback import LiqpayCallbackDict, LiqpayRefundDict
 
 

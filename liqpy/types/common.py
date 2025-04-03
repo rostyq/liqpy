@@ -1,17 +1,18 @@
-from typing import Literal as _Literal
+from typing import Literal
 
-Language = _Literal["uk", "en"]
-Currency = _Literal["UAH", "USD", "EUR"]
-Format = _Literal["json", "xml", "csv"]
 
-PayType = _Literal[
+Language = Literal["uk", "en"]
+Currency = Literal["UAH", "USD", "EUR"]
+Format = Literal["json", "xml", "csv"]
+
+PayType = Literal[
     "apay",
     "gpay",
     "apay_tavv",
     "gpay_tavv",
     "tavv",
 ]
-PayOption = _Literal[
+PayOption = Literal[
     "card", "liqpay", "privat24", "masterpass", "moment_part", "cash", "invoice", "qr"
 ]
-SubscribePeriodicity = _Literal["month", "year"]
+SubscribePeriodicity = Literal["month", "year"]
