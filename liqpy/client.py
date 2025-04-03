@@ -254,7 +254,7 @@ class Client:
         status = data.get("status")
         err_code = data.pop("err_code", None) or data.pop("code", None)
 
-        if result == "ok":
+        if result == "ok" and status != "error":
             return data
 
         if action in ("status", "data") and data.get("payment_id") is not None:
