@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from requests import Response
+    from httpx import Response
 
     from liqpy.types.error import (
         LiqPayErrcode,

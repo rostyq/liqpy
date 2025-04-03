@@ -3,12 +3,21 @@ from typing import TYPE_CHECKING, Any, AnyStr, Optional, Unpack
 from enum import Enum
 from uuid import UUID
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 from base64 import b64encode, b64decode
 from hashlib import sha1
 
 from datetime import datetime
 
+from httpx import (
+    Client,
+    AsyncClient,
+    Response,
+    USE_CLIENT_DEFAULT,
+    __version__ as httpx_version,
+)
+
+from liqpy import __version__ as liqpy_version
 from liqpy.constants import URL, VERSION
 
 from .encoder import Encoder, JSONEncoder, SEPARATORS
@@ -18,11 +27,10 @@ from .validation import Validator, BaseValidator
 from .exceptions import exception
 
 if TYPE_CHECKING:
-    from requests import Session, Response
+    from httpx._types import TimeoutTypes, RequestExtensions
 
     from liqpy.types import LiqpayRequestDict
     from liqpy.types.action import Action
-    from liqpy.types.post import Hooks, Proxies, Timeout, Verify, Cert
 
 
 __all__ = [
@@ -34,6 +42,7 @@ __all__ = [
     "Endpoint",
     "is_sandbox",
     "post",
+    "post_async",
     "sign",
     "encode",
     "decode",
@@ -57,20 +66,21 @@ def is_sandbox(key: str, /) -> bool:
     return key.startswith("sandbox_")
 
 
+_HEADERS = {
+    "Content-Type": "application/x-www-form-urlencoded",
+    "User-Agent": f"httpx/{httpx_version} {__package__}/{liqpy_version}",
+}
+
+
 def post(
     endpoint: Endpoint,
     /,
     data: AnyStr,
     signature: AnyStr,
     *,
-    session: "Session",
-    stream: bool = False,
-    allow_redirects: bool = False,
-    proxies: Optional["Proxies"] = None,
-    timeout: Optional["Timeout"] = None,
-    hooks: Optional["Hooks"] = None,
-    verify: Optional["Verify"] = None,
-    cert: Optional["Cert"] = None,
+    client: Client,
+    timeout: Optional["TimeoutTypes"] = None,
+    extensions: Optional["RequestExtensions"] = None,
 ) -> "Response":
     """
     Send POST request to LiqPay API
@@ -82,54 +92,80 @@ def post(
     - `endpoint` -- API endpoint to send request to (see `liqpy.Endpoint`)
     - `data` -- base64 encoded JSON data to send
     - `signature` -- LiqPay signature for the data
-    - `session` -- `requests.Session` instance to use
-    - `stream` -- whether to stream the response
-    - `allow_redirects` -- whether to follow redirects
-    - `proxies` -- proxies to use
-    (see [Requests Proxies](https://docs.python-requests.org/en/stable/user/advanced/#proxies))
-    - `timeout` -- timeout for the request
-    - `hooks` -- hooks for the request
-    (see [Requests Event Hooks](https://docs.python-requests.org/en/stable/user/advanced/#event-hooks))
-    - `verify` -- whether to verify SSL certificate
-    (see [Request SSL Cert Verification](https://requests.readthedocs.io/en/stable/user/advanced/#ssl-cert-verification))
-    - `cert` -- client certificate to use
-    (see [Request Client Side Certificates](https://requests.readthedocs.io/en/stable/user/advanced/#client-side-certificates))
+    - `session` -- `httpx.Client` instance to use
 
     Returns
     -------
-    - `requests.Response` instance
+    - `httpx.Response` instance
 
     Example
     -------
-    >>> from requests import Session
+    >>> from httpx import Client
     >>> from liqpy.api import encode, sign, request, Endpoint
     >>> data = encode({"action": "status", "version": 3})
     >>> signature = sign(data, key=b"a4825234f4bae72a0be04eafe9e8e2bada209255")
-    >>> with Session() as session:  # doctest: +SKIP
-    ...     response = request(Endpoint.REQUEST, data, signature, session=session) # doctest: +SKIP
+    >>> with Client() as client:  # doctest: +SKIP
+    ...     response = request(Endpoint.REQUEST, data, signature, client=client) # doctest: +SKIP
     ...     result = response.json() # doctest: +SKIP
     """
-    # print(data)
-    response = session.request(
-        method="POST",
-        url=endpoint.url(),
-        data={"data": data, "signature": signature},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        json=None,
-        params=None,
-        cookies=None,
-        files=None,
+    return client.request(
+        "POST",
+        endpoint.url(),
+        content=urlencode({"data": data, "signature": signature}).encode(),
+        headers=_HEADERS,
         auth=None,
-        proxies=proxies,
-        timeout=timeout,
-        hooks=hooks,
-        allow_redirects=allow_redirects,
-        stream=stream,
-        verify=verify,
-        cert=cert,
+        timeout=USE_CLIENT_DEFAULT if timeout is None else timeout,
+        follow_redirects=False,
+        extensions=extensions,
     )
-    response.raise_for_status()
-    return response
+
+
+async def post_async(
+    endpoint: Endpoint,
+    /,
+    data: AnyStr,
+    signature: AnyStr,
+    *,
+    client: AsyncClient,
+    timeout: Optional["TimeoutTypes"] = None,
+    extensions: Optional["RequestExtensions"] = None,
+) -> "Response":
+    """
+    Send POST request to LiqPay API asynchronously.
+
+    See [Rules for the formation of a request for payment](https://www.liqpay.ua/en/documentation/data_signature).
+
+    Arguments
+    ---------
+    - `endpoint` -- API endpoint to send request to (see `liqpy.Endpoint`)
+    - `data` -- base64 encoded JSON data to send
+    - `signature` -- LiqPay signature for the data
+    - `client` -- `httpx.AsyncClient` instance to use
+
+    Returns
+    -------
+    - `httpx.Response` instance
+
+    Example
+    -------
+    >>> from httpx import AsyncClient
+    >>> from liqpy.api import encode, sign, post_async, Endpoint
+    >>> data = encode({"action": "status", "version": 3})
+    >>> signature = sign(data, key=b"a4825234f4bae72a0be04eafe9e8e2bada209255")
+    >>> async with AsyncClient() as client:  # doctest: +SKIP
+    ...     response = await post_async(Endpoint.REQUEST, data, signature, client=client) # doctest: +SKIP
+    ...     result = response.json() # doctest: +SKIP
+    """
+    return await client.request(
+        "POST",
+        endpoint.url(),
+        content=urlencode({"data": data, "signature": signature}).encode(),
+        headers=_HEADERS,
+        auth=None,
+        timeout=USE_CLIENT_DEFAULT if timeout is None else timeout,
+        follow_redirects=False,
+        extensions=extensions,
+    )
 
 
 def sign(data: bytes, /, key: bytes) -> bytes:
@@ -211,12 +247,14 @@ def request(
 
     match action:
         case "subscribe":
-            assert "subscribe_periodicity" in params, "subscribe_periodicity is required"
+            assert (
+                "subscribe_periodicity" in params
+            ), "subscribe_periodicity is required"
             params["subscribe"] = True
 
             if params.get("subscribe_date_start") is None:
                 params["subscribe_date_start"] = datetime.now()
-        
+
         case "letter_of_credit":
             params["letter_of_credit"] = True
 

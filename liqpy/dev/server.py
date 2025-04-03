@@ -5,7 +5,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs
 
 from liqpy.client import Client
-from liqpy.dev import LiqPyWarning
+from liqpy.dev import LiqpyWarning
 
 if TYPE_CHECKING:
     from liqpy.types import LiqpayCallbackDict
@@ -92,7 +92,7 @@ class LiqpayServer(HTTPServer):
         warn(
             "LiqPy Test Server is only for development and testing purposes. "
             "Do not use it in production!",
-            category=LiqPyWarning,
+            category=LiqpyWarning,
             stacklevel=2,
         )
 
