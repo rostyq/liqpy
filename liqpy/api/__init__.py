@@ -10,15 +10,14 @@ from hashlib import sha1
 from datetime import datetime
 
 from httpx import (
-    Client,
-    AsyncClient,
     Response,
-    USE_CLIENT_DEFAULT,
-    __version__ as httpx_version,
+    __version__ as _httpx_version,
+    request as _httpx_request,
 )
+from httpx._config import DEFAULT_TIMEOUT_CONFIG
 
-from liqpy import __version__ as liqpy_version
-from liqpy.constants import URL, VERSION
+from liqpy import __version__ as _liqpy_version
+from liqpy.constants import BASE_URL, VERSION, REQUEST_ENDPOINT, CHECKOUT_ENDPOINT
 
 from .encoder import Encoder, JSONEncoder, SEPARATORS
 from .decoder import Decoder, JSONDecoder
@@ -27,7 +26,7 @@ from .validation import Validator, BaseValidator
 from .exceptions import exception
 
 if TYPE_CHECKING:
-    from httpx._types import TimeoutTypes, RequestExtensions
+    from httpx._types import TimeoutTypes, ProxyTypes
 
     from liqpy.types import LiqpayRequestDict
     from liqpy.types.action import Action
@@ -41,24 +40,23 @@ __all__ = [
     "exception",
     "Endpoint",
     "is_sandbox",
-    "post",
-    "post_async",
     "sign",
     "encode",
     "decode",
     "request",
+    "payload",
 ]
 
 
 class Endpoint(Enum):
     """LiqPay API endpoints"""
 
-    REQUEST: str = "/api/request"
-    CHECKOUT: str = f"/api/{VERSION}/checkout"
+    REQUEST: str = REQUEST_ENDPOINT
+    CHECKOUT: str = CHECKOUT_ENDPOINT
 
     def url(self) -> str:
         """Return full URL for the endpoint"""
-        return urljoin(URL, self.value)
+        return urljoin(BASE_URL, self.value)
 
 
 def is_sandbox(key: str, /) -> bool:
@@ -66,10 +64,14 @@ def is_sandbox(key: str, /) -> bool:
     return key.startswith("sandbox_")
 
 
-_HEADERS = {
+COMMON_HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
-    "User-Agent": f"httpx/{httpx_version} {__package__}/{liqpy_version}",
+    "User-Agent": f"httpx/{_httpx_version} {__package__}/{_liqpy_version}",
 }
+
+
+def payload(*, data: AnyStr, signature: AnyStr) -> bytes:
+    return urlencode({"data": data, "signature": signature}).encode()
 
 
 def post(
@@ -78,9 +80,9 @@ def post(
     data: AnyStr,
     signature: AnyStr,
     *,
-    client: Client,
-    timeout: Optional["TimeoutTypes"] = None,
-    extensions: Optional["RequestExtensions"] = None,
+    proxy: Optional["ProxyTypes"] = None,
+    timeout: "TimeoutTypes" = DEFAULT_TIMEOUT_CONFIG,
+    trust_env: bool = True,
 ) -> "Response":
     """
     Send POST request to LiqPay API
@@ -92,7 +94,9 @@ def post(
     - `endpoint` -- API endpoint to send request to (see `liqpy.Endpoint`)
     - `data` -- base64 encoded JSON data to send
     - `signature` -- LiqPay signature for the data
-    - `session` -- `httpx.Client` instance to use
+    - `proxy` -- proxy settings (see `httpx.Proxy`)
+    - `timeout` -- timeout settings (see `httpx.Timeout`)
+    - `trust_env` -- enables or disables usage of environment variables for `httpx` configuration.
 
     Returns
     -------
@@ -100,71 +104,21 @@ def post(
 
     Example
     -------
-    >>> from httpx import Client
-    >>> from liqpy.api import encode, sign, request, Endpoint
+    >>> from liqpy.api import encode, sign, post, Endpoint
     >>> data = encode({"action": "status", "version": 3})
     >>> signature = sign(data, key=b"a4825234f4bae72a0be04eafe9e8e2bada209255")
-    >>> with Client() as client:  # doctest: +SKIP
-    ...     response = request(Endpoint.REQUEST, data, signature, client=client) # doctest: +SKIP
-    ...     result = response.json() # doctest: +SKIP
+    >>> response = post(Endpoint.REQUEST, data, signature)  # doctest: +SKIP
+    >>> result = response.json() # doctest: +SKIP
     """
-    return client.request(
+    return _httpx_request(
         "POST",
         endpoint.url(),
-        content=urlencode({"data": data, "signature": signature}).encode(),
-        headers=_HEADERS,
-        auth=None,
-        timeout=USE_CLIENT_DEFAULT if timeout is None else timeout,
+        content=payload(data=data, signature=signature),
+        headers=COMMON_HEADERS,
+        proxy=proxy,
+        timeout=timeout,
         follow_redirects=False,
-        extensions=extensions,
-    )
-
-
-async def post_async(
-    endpoint: Endpoint,
-    /,
-    data: AnyStr,
-    signature: AnyStr,
-    *,
-    client: AsyncClient,
-    timeout: Optional["TimeoutTypes"] = None,
-    extensions: Optional["RequestExtensions"] = None,
-) -> "Response":
-    """
-    Send POST request to LiqPay API asynchronously.
-
-    See [Rules for the formation of a request for payment](https://www.liqpay.ua/en/documentation/data_signature).
-
-    Arguments
-    ---------
-    - `endpoint` -- API endpoint to send request to (see `liqpy.Endpoint`)
-    - `data` -- base64 encoded JSON data to send
-    - `signature` -- LiqPay signature for the data
-    - `client` -- `httpx.AsyncClient` instance to use
-
-    Returns
-    -------
-    - `httpx.Response` instance
-
-    Example
-    -------
-    >>> from httpx import AsyncClient
-    >>> from liqpy.api import encode, sign, post_async, Endpoint
-    >>> data = encode({"action": "status", "version": 3})
-    >>> signature = sign(data, key=b"a4825234f4bae72a0be04eafe9e8e2bada209255")
-    >>> async with AsyncClient() as client:  # doctest: +SKIP
-    ...     response = await post_async(Endpoint.REQUEST, data, signature, client=client) # doctest: +SKIP
-    ...     result = response.json() # doctest: +SKIP
-    """
-    return await client.request(
-        "POST",
-        endpoint.url(),
-        content=urlencode({"data": data, "signature": signature}).encode(),
-        headers=_HEADERS,
-        auth=None,
-        timeout=USE_CLIENT_DEFAULT if timeout is None else timeout,
-        follow_redirects=False,
-        extensions=extensions,
+        trust_env=trust_env,
     )
 
 

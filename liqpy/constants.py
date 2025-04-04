@@ -1,7 +1,9 @@
-__all__ = ("URL", "VERSION", "DATE_FORMAT")
+__all__ = ("BASE_URL", "VERSION", "DATE_FORMAT")
 
 
-URL = "https://www.liqpay.ua"
+BASE_URL = "https://www.liqpay.ua"
 VERSION = 3
+REQUEST_ENDPOINT = "/api/request"
+CHECKOUT_ENDPOINT = f"/api/{VERSION}/checkout"
 
 DATE_FORMAT = r"%Y-%m-%d %H:%M:%S"

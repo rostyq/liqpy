@@ -1,5 +1,5 @@
 from warnings import warn
-from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr, Type
+from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr, TypedDict
 from os import environ
 from logging import getLogger
 from datetime import datetime, timedelta
@@ -10,18 +10,19 @@ from uuid import UUID
 from httpx import Client as _Client, AsyncClient as _AsyncClient, Response
 from secret_type import secret, Secret
 
-from liqpy import __version__
 from liqpy.dev import LiqpyWarning
 
 from .api import (
     VERSION,
-    Endpoint,
-    post,
+    BASE_URL,
+    COMMON_HEADERS,
+    REQUEST_ENDPOINT,
+    CHECKOUT_ENDPOINT,
     sign,
     request,
-    post_async,
     encode,
     decode,
+    payload,
     is_sandbox,
     exception,
     BasePreprocessor,
@@ -55,10 +56,18 @@ CHECKOUT_ACTIONS = (
 )
 
 
+class InitParams(TypedDict, total=False):
+    validator: BaseValidator
+    preprocessor: BasePreprocessor
+    encoder: JSONEncoder
+    decoder: JSONDecoder
+
+
 class BaseClient:
     """
     Base class for LiqPay API logic that does not depend on the HTTP client.
     """
+
     _public_key: str
     _private_key: Secret[bytes]
 
@@ -161,8 +170,11 @@ class BaseClient:
             encoder=self.encoder,
         )
         signature = self.sign(data)
-
         return data, signature
+
+    def payload(self, /, action: str, **kwargs: Unpack["LiqpayRequestDict"]) -> bytes:
+        data, signature = self.encode(action, **kwargs)
+        return payload(data=data, signature=signature)
 
     def is_valid(self, /, data: bytes, signature: bytes) -> bool:
         """
@@ -211,7 +223,9 @@ class BaseClient:
 
         return data
 
-    def _handle_reports_response(self, response: Response, format: Optional["Format"]) -> str:
+    def _handle_reports_response(
+        self, response: Response, format: Optional["Format"]
+    ) -> str:
         """
         Handle the response from the reports request, extracting data or raising errors.
         """
@@ -302,6 +316,7 @@ class Client(BaseClient):
     """
     Synchronous LiqPay API client using httpx.Client.
     """
+
     _client: _Client
 
     def __init__(
@@ -309,21 +324,28 @@ class Client(BaseClient):
         /,
         public_key: str | None = None,
         private_key: str | None = None,
-        *,
-        client: _Client | None = None,
-        **kwargs,
+        **kwargs: Unpack[InitParams],
     ):
         super().__init__(public_key=public_key, private_key=private_key, **kwargs)
-        self._client = client or _Client()
+        self._client = _Client(
+            headers=COMMON_HEADERS, base_url=BASE_URL, follow_redirects=False
+        )
+
+    def __enter__(self) -> "_Client":
+        self._client.__enter__()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self._client.__exit__(*args, **kwargs)
+
+    def close(self) -> None:
+        """Close the client session"""
+        self._client.close()
 
     def request(self, /, action: "Action", **kwargs: "LiqpayRequestDict") -> dict:
-        response = post(
-            Endpoint.REQUEST,
-            *self.encode(action, **kwargs),
-            client=self._client,
-        )
-        response.raise_for_status()  # Handle status check here
-        return self._handle_response(response, action)
+        content = self.payload(action, **kwargs)
+        response = self._client.request("POST", REQUEST_ENDPOINT, content=content)
+        return self._handle_response(response.raise_for_status(), action)
 
     def reports(
         self,
@@ -333,14 +355,14 @@ class Client(BaseClient):
         *,
         format: Optional["Format"] = None,
     ) -> str:
-        response = post(
-            Endpoint.REQUEST,
-            *self.encode(
-                "reports", date_from=date_from, date_to=date_to, resp_format=format
-            ),
-            client=self._client,
-        ).raise_for_status()
-        return self._handle_reports_response(response, format)
+        content = self.payload(
+            "reports",
+            date_from=date_from,
+            date_to=date_to,
+            resp_format=format,
+        )
+        response = self._client.request("POST", REQUEST_ENDPOINT, content=content)
+        return self._handle_reports_response(response.raise_for_status(), format)
 
     def pay(
         self,
@@ -464,20 +486,17 @@ class Client(BaseClient):
             action in CHECKOUT_ACTIONS
         ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
 
-        response = post(
-            Endpoint.CHECKOUT,
-            *self.encode(
-                action,
-                order_id=order_id,
-                amount=amount,
-                currency=currency,
-                description=description,
-                expired_date=expired_date,
-                paytypes=paytypes,
-                **kwargs,
-            ),
-            client=self._client,
+        content = self.payload(
+            action,
+            order_id=order_id,
+            amount=amount,
+            currency=currency,
+            description=description,
+            expired_date=expired_date,
+            paytypes=paytypes,
+            **kwargs,
         )
+        response = self._client.request("POST", CHECKOUT_ENDPOINT, content=content)
         return self._handle_checkout_response(response)
 
     def payments(
@@ -487,12 +506,11 @@ class Client(BaseClient):
         date_to: Union[datetime, str, int, timedelta],
     ) -> list["LiqpayCallbackDict"]:
         """
-        Get an archive of recieved payments
+        Get an archive of received payments
 
         For a significant amount of data use `liqpy.client.Client.reports` with `csv` format instead.
         """
-        result = self.reports(date_from, date_to, format="json")
-        return Decoder().decode(result)
+        return self.decoder.decode(self.reports(date_from, date_to, format="json"))
 
     def subscribe(
         self,
@@ -596,6 +614,7 @@ class AsyncClient(BaseClient):
     """
     Asynchronous LiqPay API client using httpx.AsyncClient.
     """
+
     _client: _AsyncClient
 
     def __init__(
@@ -603,21 +622,28 @@ class AsyncClient(BaseClient):
         /,
         public_key: str | None = None,
         private_key: str | None = None,
-        *,
-        client: _AsyncClient | None = None,
-        **kwargs,
+        **kwargs: Unpack[InitParams],
     ):
         super().__init__(public_key=public_key, private_key=private_key, **kwargs)
-        self._client = client or _AsyncClient()
+        self._client = _AsyncClient(
+            headers=COMMON_HEADERS, base_url=BASE_URL, follow_redirects=False
+        )
+
+    async def __aenter__(self) -> "_AsyncClient":
+        await self._client.__aenter__()
+        return self
+
+    async def __aexit__(self, *args, **kwargs):
+        await self._client.__aexit__(*args, **kwargs)
+
+    async def close(self) -> None:
+        """Close the client session"""
+        await self._client.aclose()
 
     async def request(self, /, action: "Action", **kwargs: "LiqpayRequestDict") -> dict:
-        response = await post_async(
-            Endpoint.REQUEST,
-            *self.encode(action, **kwargs),
-            client=self._client,
-        )
-        response.raise_for_status()  # Handle status check here
-        return self._handle_response(response, action)
+        content = self.payload(action, **kwargs)
+        response = await self._client.request("POST", REQUEST_ENDPOINT, content=content)
+        return self._handle_response(response.raise_for_status(), action)
 
     async def reports(
         self,
@@ -627,15 +653,14 @@ class AsyncClient(BaseClient):
         *,
         format: Optional["Format"] = None,
     ) -> str:
-        response = await post_async(
-            Endpoint.REQUEST,
-            *self.encode(
-                "reports", date_from=date_from, date_to=date_to, resp_format=format
-            ),
-            client=self._client,
+        content = self.payload(
+            "reports",
+            date_from=date_from,
+            date_to=date_to,
+            resp_format=format,
         )
-        response.raise_for_status()
-        return self._handle_reports_response(response, format)
+        response = await self._client.request("POST", REQUEST_ENDPOINT, content=content)
+        return self._handle_reports_response(response.raise_for_status(), format)
 
     async def pay(
         self,
@@ -758,20 +783,19 @@ class AsyncClient(BaseClient):
         assert (
             action in CHECKOUT_ACTIONS
         ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
+        content = self.payload(
+            action,
+            order_id=order_id,
+            amount=amount,
+            currency=currency,
+            description=description,
+            expired_date=expired_date,
+            paytypes=paytypes,
+            **kwargs,
+        )
 
-        response = await post_async(
-            Endpoint.CHECKOUT,
-            *self.encode(
-                action,
-                order_id=order_id,
-                amount=amount,
-                currency=currency,
-                description=description,
-                expired_date=expired_date,
-                paytypes=paytypes,
-                **kwargs,
-            ),
-            client=self._client,
+        response = await self._client.request(
+            "POST", CHECKOUT_ENDPOINT, content=content
         )
         return self._handle_checkout_response(response)
 
@@ -782,12 +806,12 @@ class AsyncClient(BaseClient):
         date_to: Union[datetime, str, int, timedelta],
     ) -> list["LiqpayCallbackDict"]:
         """
-        Get an archive of recieved payments
+        Get an archive of received payments
 
         For a significant amount of data use `liqpy.client.Client.reports` with `csv` format instead.
         """
         result = await self.reports(date_from, date_to, format="json")
-        return Decoder().decode(result)
+        return self.decoder.decode(result)
 
     async def subscribe(
         self,
@@ -848,7 +872,9 @@ class AsyncClient(BaseClient):
             **kwargs,
         )
 
-    async def data(self, /, opid: str | int | UUID, *, info: str) -> "LiqpayCallbackDict":
+    async def data(
+        self, /, opid: str | int | UUID, *, info: str
+    ) -> "LiqpayCallbackDict":
         """
         Adding an info to already created payment
 
