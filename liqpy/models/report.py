@@ -1,10 +1,10 @@
+from typing import cast, Any
 from decimal import Decimal
-from typing import Self
 from enum import StrEnum, auto, Enum, member
 from datetime import datetime
 from dataclasses import dataclass
 
-from liqpy.util.convert import to_datetime
+from liqpy.convert import to_datetime
 
 
 class Field(Enum):
@@ -273,7 +273,9 @@ class Report:
     def from_dict(cls, data: dict[str, str]) -> "Report":
         """
         Create a new instance from a dictionary of strings
-
-        Useful
         """
-        return cls(**{k.lower(): Field[k].value(v) for k, v in data.items()})
+        return cls(
+            **cast(
+                dict[str, Any], {k.lower(): Field[k].value(v) for k, v in data.items()}
+            )
+        )

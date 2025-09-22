@@ -1,6 +1,18 @@
 from typing import Literal, Union
 
 
+__all__ = [
+    "LiqPayErrcode",
+    "UnknownErrcode",
+    "LiqpayAntiFraudErrcode",
+    "LiqpayRequestErrcode",
+    "LiqpayExpireErrcode",
+    "LiqpayPaymentErrcode",
+    "LiqpayNonFinancialErrcode",
+    "LiqpayFinancialErrcode",
+]
+
+
 UnknownErrcode = Literal["unknown"]
 
 LiqpayAntiFraudErrcode = Literal["limit", "frod", "decline"]

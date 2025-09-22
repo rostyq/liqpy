@@ -1,7 +1,10 @@
-from typing import Literal as Literal, Optional
-from enum import Enum as Enum
+from typing import Literal as Literal, Optional, TYPE_CHECKING
+from enum import StrEnum
 from datetime import date, timedelta
 from random import randint
+
+if TYPE_CHECKING:
+    from liqpy.types.request import CardDict
 
 
 __all__ = ["TestCard", "gen_card_expire", "gen_card_cvv", "fmt_card_expire_date"]
@@ -29,12 +32,8 @@ def gen_card_cvv() -> str:
     return str(randint(0, 999)).rjust(3, "0")
 
 
-class TestCard(Enum):
-    """
-    Test card numbers for LiqPay API requests
-
-    [LiqPay API Testing](https://www.liqpay.ua/en/documentation/api/sandbox)
-    """
+class TestCard(StrEnum):
+    """Test card numbers for LiqPay API requests"""
 
     SUCCESSFUL_PAYMENT = "4242424242424242"
     SUCCESSFUL_PAYMENT_WITH_3DS = "4000000000003063"
@@ -50,11 +49,21 @@ class TestCard(Enum):
     def successful(cls, code: Optional[Literal["3ds", "otp", "cvv", "token"]] = None):
         """Card number for a successful payment with a specific code"""
         if code is None:
-            return cls.SUCCESSFUL_PAYMENT.value
+            return cls.SUCCESSFUL_PAYMENT
         else:
-            return cls[f"SUCCESSFUL_PAYMENT_WITH_{code.upper()}"].value
+            return cls[f"SUCCESSFUL_PAYMENT_WITH_{code.upper()}"]
 
     @classmethod
     def failure(cls, errcode: Literal["limit", "9859"] = "limit"):
         """Card number for a failed payment with a specific error code"""
-        return cls[f"FAILURE_PAYMENT_ERRCODE_{errcode.upper()}"].value
+        return cls[f"FAILURE_PAYMENT_ERRCODE_{errcode.upper()}"]
+    
+    def to_params(self, valid: bool = True) -> "CardDict":
+        """Return a dictionary with card parameters"""
+        exp_month, exp_year = gen_card_expire(valid=valid)
+        return {
+            "card": self.value,
+            "card_exp_month": exp_month,
+            "card_exp_year": exp_year,
+            "card_cvv": gen_card_cvv(),
+        }

@@ -1,51 +1,44 @@
+from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, Any, cast
 from warnings import warn
-from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, AnyStr, TypedDict
 from os import environ
-from logging import getLogger
 from datetime import datetime, timedelta
 from numbers import Number
 from re import search
 from uuid import UUID
 
-from httpx import Client as _Client, AsyncClient as _AsyncClient, Response
-from secret_type import secret, Secret
+from httpx import (
+    Client as _Client,
+    AsyncClient as _AsyncClient,
+    Response,
+    USE_CLIENT_DEFAULT,
+)
+from httpx._client import UseClientDefault
+from httpx._types import TimeoutTypes
 
 from liqpy.dev import LiqpyWarning
 
 from .api import (
-    VERSION,
+    API_VERSION,
     BASE_URL,
     COMMON_HEADERS,
     REQUEST_ENDPOINT,
     CHECKOUT_ENDPOINT,
-    sign,
-    request,
-    encode,
-    decode,
-    payload,
     is_sandbox,
-    exception,
-    BasePreprocessor,
-    BaseValidator,
-    JSONEncoder,
-    JSONDecoder,
-    Decoder,
-    Encoder,
-    Preprocessor,
-    Validator,
 )
+from .api.decoder import LiqpayDecoder
+from .api.encoder import LiqpayEncoder
+from .api.validation import LiqpayValidator
+from .api.exceptions import exception
 
 if TYPE_CHECKING:
-    from .types.common import Language, Currency, SubscribePeriodicity, PayOption
-    from .types.request import Format, LiqpayRequestDict, Action
-    from .types.callback import LiqpayCallbackDict, LiqpayRefundDict
+    from .types.common import *
+    from .types.request import *
+    from .types.response import *
 
 
 __all__ = ["BaseClient", "Client", "AsyncClient"]
 
-
-logger = getLogger(__package__)
-
+TimeoutParam = Union[TimeoutTypes, UseClientDefault]
 
 CHECKOUT_ACTIONS = (
     "auth",
@@ -56,25 +49,16 @@ CHECKOUT_ACTIONS = (
 )
 
 
-class InitParams(TypedDict, total=False):
-    validator: BaseValidator
-    preprocessor: BasePreprocessor
-    encoder: JSONEncoder
-    decoder: JSONDecoder
-
-
 class BaseClient:
     """
     Base class for LiqPay API logic that does not depend on the HTTP client.
     """
 
     _public_key: str
-    _private_key: Secret[bytes]
+    __private_key: bytes
 
-    validator: BaseValidator
-    preprocessor: BasePreprocessor
-    encoder: JSONEncoder
-    decoder: JSONDecoder
+    encoder: LiqpayEncoder
+    decoder: LiqpayDecoder
 
     def __init__(
         self,
@@ -82,16 +66,14 @@ class BaseClient:
         public_key: str | None = None,
         private_key: str | None = None,
         *,
-        validator: Optional[BaseValidator] = None,
-        preprocessor: Optional[BasePreprocessor] = None,
-        encoder: Optional[JSONEncoder] = None,
-        decoder: Optional[JSONDecoder] = None,
+        encoder: Optional[LiqpayEncoder] = None,
+        decoder: Optional[LiqpayDecoder] = None,
     ):
         self.update_keys(public_key=public_key, private_key=private_key)
-        self.validator = validator if validator is not None else Validator()
-        self.preprocessor = preprocessor if preprocessor is not None else Preprocessor()
-        self.encoder = encoder if encoder is not None else Encoder()
-        self.decoder = decoder if decoder is not None else Decoder()
+        self.encoder = (
+            encoder if encoder is not None else LiqpayEncoder(LiqpayValidator())
+        )
+        self.decoder = decoder if decoder is not None else LiqpayDecoder()
 
     @property
     def public_key(self) -> str:
@@ -102,6 +84,11 @@ class BaseClient:
     def sandbox(self) -> bool:
         """Check if client use sandbox LiqPay API"""
         return is_sandbox(self._public_key)
+
+    @property
+    def checkout_endpoint(self) -> str:
+        """Get the checkout endpoint URL"""
+        return CHECKOUT_ENDPOINT.format(version=API_VERSION)
 
     def update_keys(
         self, /, *, public_key: str | None, private_key: str | None
@@ -118,7 +105,7 @@ class BaseClient:
             raise ValueError("Public and private keys must be both sandbox or both not")
 
         self._public_key = public_key
-        self._private_key = secret(private_key.encode())
+        self.__private_key = private_key.encode()
 
         warn(
             "Using %s LiqPay API" % ("sandbox" if sandbox else "live"),
@@ -129,76 +116,28 @@ class BaseClient:
     def __repr__(self):
         return f'{self.__class__.__name__}(public_key="{self._public_key}")'
 
-    def _callback(
-        self, /, data: bytes, signature: bytes, *, verify: bool = True
-    ) -> "LiqpayCallbackDict":
-        if verify:
-            self.verify(data, signature)
-        else:
-            warn(
-                "Skipping LiqPay signature verification",
-                stacklevel=2,
-                category=LiqpyWarning,
-            )
-
-        return decode(data, decoder=self.decoder)
-
-    def sign(self, data: bytes, /) -> bytes:
-        """
-        Sign data string with private key
-
-        See `liqpy.api.sign` for more information.
-        """
-        with self._private_key.dangerous_reveal() as pk:
-            return sign(data, key=pk)
-
-    def encode(
-        self, /, action: str, **kwargs: Unpack["LiqpayRequestDict"]
-    ) -> tuple[bytes, bytes]:
-        """
-        Encode parameters into data and signature strings
-
-        >>> data, signature = client.encode("status", order_id="a1a1a1a1")
-
-        See `liqpy.api.encode` for more information.
-        """
-        data = encode(
-            request(action, public_key=self._public_key, version=VERSION, **kwargs),
-            filter_none=True,
-            validator=self.validator,
-            preprocessor=self.preprocessor,
-            encoder=self.encoder,
+    def payload(
+        self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"
+    ) -> bytes:
+        return self.encoder.payload(
+            self.__private_key,
+            {
+                "action": action,
+                "version": API_VERSION,
+                "public_key": self._public_key,
+                **kwargs,
+            },
         )
-        signature = self.sign(data)
-        return data, signature
 
-    def payload(self, /, action: str, **kwargs: Unpack["LiqpayRequestDict"]) -> bytes:
-        data, signature = self.encode(action, **kwargs)
-        return payload(data=data, signature=signature)
-
-    def is_valid(self, /, data: bytes, signature: bytes) -> bool:
-        """
-        Check if the signature is valid
-
-        Used for verification in `liqpy.Client.verify`.
-        """
-        return self.sign(data) == signature
-
-    def verify(self, /, data: bytes, signature: bytes) -> None:
-        """
-        Verify data signature
-
-        Raises an `AssertionError` if `data` does not match the `signature`.
-
-        Used for verification in `liqpy.Client.callback`.
-        """
-        assert self.is_valid(data, signature), "Invalid signature"
-
-    def _handle_response(self, response: Response, action: str) -> dict:
+    def _handle_response(
+        self, response: Response, /, action: "LiqpayAction"
+    ) -> dict[str, Any]:
         """
         Handle the response from the LiqPay API, detecting errors and returning data.
         """
-        if not response.headers.get("Content-Type", "").startswith("application/json"):
+        if not str(response.headers.get("Content-Type", "")).startswith(
+            "application/json"
+        ):
             raise exception(response=response)
 
         data: dict = self.decoder.decode(response.text)
@@ -224,15 +163,15 @@ class BaseClient:
         return data
 
     def _handle_reports_response(
-        self, response: Response, format: Optional["Format"]
+        self, response: Response, /, format: Optional["Format"]
     ) -> str:
         """
         Handle the response from the reports request, extracting data or raising errors.
         """
         output: str = response.text
-        error: dict | None = None
+        error: dict[str, Any] | None = None
 
-        content_type = response.headers.get("Content-Type", "")
+        content_type = str(response.headers.get("Content-Type", ""))
 
         if content_type.startswith("application/json"):
             if format == "json" or format is None:
@@ -254,7 +193,27 @@ class BaseClient:
                 details=error,
             )
 
-    def callback(self, /, data: AnyStr, signature: AnyStr, *, verify: bool = True):
+    def _handle_checkout_response(self, response: Response, /) -> str:
+        """
+        Handle the response for the checkout request, extracting the URL or raising errors.
+        """
+        if response.next_request is None:
+            result = {}
+            if str(response.headers.get("Content-Type", "")).startswith(
+                "application/json"
+            ):
+                result = response.json()
+
+            raise exception(
+                code=result.pop("err_code", None),
+                description=result.pop("err_description", None),
+                response=response,
+                details=result if len(result) else None,
+            )
+        else:
+            return str(response.next_request.url)
+
+    def callback(self, /, data: str, signature: str, *, verify: bool = True):
         """
         Verify and decode the callback data
 
@@ -279,37 +238,12 @@ class BaseClient:
 
         [Documentation](https://www.liqpay.ua/en/documentation/api/callback)
         """
-        if isinstance(data, str):
-            data = data.encode()
-
-        if isinstance(signature, str):
-            signature = signature.encode()
-
-        result = self._callback(data, signature, verify=verify)
-        version = result.get("version")
-
-        if version != VERSION:
-            logger.warning("Callback version mismatch: %s != %s", version, VERSION)
-
-        return result
-
-    def _handle_checkout_response(self, response: Response) -> str:
-        """
-        Handle the response for the checkout request, extracting the URL or raising errors.
-        """
-        if response.next_request is None:
-            result = {}
-            if response.headers.get("Content-Type", "").startswith("application/json"):
-                result = response.json()
-
-            raise exception(
-                code=result.pop("err_code", None),
-                description=result.pop("err_description", None),
-                response=response,
-                details=result if len(result) else None,
+        if verify:
+            return self.decoder.callback(
+                data.encode(), signature.encode(), self.__private_key
             )
         else:
-            return str(response.next_request.url)
+            return self.decoder(data)
 
 
 class Client(BaseClient):
@@ -324,14 +258,21 @@ class Client(BaseClient):
         /,
         public_key: str | None = None,
         private_key: str | None = None,
-        **kwargs: Unpack[InitParams],
+        *,
+        encoder: Optional[LiqpayEncoder] = None,
+        decoder: Optional[LiqpayDecoder] = None,
     ):
-        super().__init__(public_key=public_key, private_key=private_key, **kwargs)
+        super().__init__(
+            public_key=public_key,
+            private_key=private_key,
+            encoder=encoder,
+            decoder=decoder,
+        )
         self._client = _Client(
             headers=COMMON_HEADERS, base_url=BASE_URL, follow_redirects=False
         )
 
-    def __enter__(self) -> "_Client":
+    def __enter__(self):
         self._client.__enter__()
         return self
 
@@ -342,272 +283,75 @@ class Client(BaseClient):
         """Close the client session"""
         self._client.close()
 
-    def request(self, /, action: "Action", **kwargs: "LiqpayRequestDict") -> dict:
+    def request(self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"):
+        """Make a request to LiqPay API with the specified action and parameters."""
         content = self.payload(action, **kwargs)
         response = self._client.request("POST", REQUEST_ENDPOINT, content=content)
         return self._handle_response(response.raise_for_status(), action)
 
     def reports(
         self,
-        /,
-        date_from: Union[datetime, str, int, timedelta],
-        date_to: Union[datetime, str, int, timedelta],
         *,
-        format: Optional["Format"] = None,
+        timeout: TimeoutParam = USE_CLIENT_DEFAULT,
+        **kwargs: "Unpack[ReportsParams]",
     ) -> str:
-        content = self.payload(
-            "reports",
-            date_from=date_from,
-            date_to=date_to,
-            resp_format=format,
-        )
-        response = self._client.request("POST", REQUEST_ENDPOINT, content=content)
-        return self._handle_reports_response(response.raise_for_status(), format)
+        """Make a `reports` action request."""
+        content = self.payload("reports", **kwargs)
+        response = self._client.request(
+            "POST", REQUEST_ENDPOINT, content=content, timeout=timeout
+        ).raise_for_status()
+        return self._handle_reports_response(response, kwargs.get("resp_format"))
 
-    def pay(
-        self,
-        /,
-        amount: Number,
-        order_id: str | UUID,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        **kwargs: "LiqpayRequestDict",
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `pay` action from LiqPay API
+    def pay(self, **kwargs: "Unpack[PayParams]"):
+        """Make a `pay` action request."""
+        return cast("PayResult", self.request("pay", **kwargs))
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/pay/doc)
-        """
-        return self.request(
-            "pay",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
+    def hold(self, **kwargs: "Unpack[LiqpayParams]"):
+        """Make a `hold` action request."""
+        return self.request("hold", **kwargs)
 
-    def hold(
-        self,
-        /,
-        amount: Number,
-        order_id: str | UUID,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        **kwargs: "LiqpayRequestDict",
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `hold` action from LiqPay API
+    def unsubscribe(self, order_id: str | UUID):
+        """Make an `unsubscribe` action request."""
+        return self.request("unsubscribe", order_id=order_id)
 
-        Use `liqpy.client.Client.complete` to complete the hold.
+    def refund(self, **kwargs: "Unpack[AmountIdParams]"):
+        """Make a `refund` action request."""
+        return cast("LiqpayRefundDict", self.request("refund", **kwargs))
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold/doc)
-        """
-        return self.request(
-            "hold",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
+    def complete(self, **kwargs: "Unpack[AmountIdParams]"):
+        """Make a `hold_completion` action request."""
+        return self.request("hold_completion", **kwargs)
 
-    def unsubscribe(self, /, opid: int | str | UUID) -> "LiqpayCallbackDict":
-        """
-        Cancel recurring payments for the order
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/unsubscribe/doc)
-        """
-        return self.request("unsubscribe", opid=opid)
-
-    def refund(
-        self,
-        /,
-        opid: int | str | UUID,
-        *,
-        amount: Number | None = None,
-    ) -> "LiqpayRefundDict":
-        """
-        Make a refund request to LiqPay API
-
-        Use `payment_id` (`int` type) to refund from recurring payments.
-        """
-        return self.request("refund", opid=opid, amount=amount)
-
-    def complete(
-        self, /, opid: int | str | UUID, *, amount: Number | None = None
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `hold_completion` action from LiqPay API
-
-        Use `liqpy.client.Client.hold` to request a hold action.
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold_completion/doc)
-        """
-        return self.request("hold_completion", opid=opid, amount=amount)
-
-    def checkout(
-        self,
-        /,
-        action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
-        *,
-        order_id: str | UUID,
-        amount: Number,
-        currency: "Currency",
-        description: str,
-        expired_date: str | datetime | timedelta | None = None,
-        paytypes: Optional[list["PayOption"]] = None,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> str:
-        """
-        Make a Client-Server checkout request to LiqPay API
-
-        Returns a url to redirect the user to.
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/checkout/doc)
-        """
-        assert (
-            action in CHECKOUT_ACTIONS
-        ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
-
-        content = self.payload(
-            action,
-            order_id=order_id,
-            amount=amount,
-            currency=currency,
-            description=description,
-            expired_date=expired_date,
-            paytypes=paytypes,
-            **kwargs,
-        )
-        response = self._client.request("POST", CHECKOUT_ENDPOINT, content=content)
+    def checkout(self, **kwargs: Unpack["CheckoutParams"]) -> str:
+        """Make a Client-Server checkout request. Returns a URL to redirect the user to."""
+        content = self.payload(**kwargs)
+        response = self._client.request("POST", self.checkout_endpoint, content=content)
         return self._handle_checkout_response(response)
 
-    def payments(
-        self,
-        /,
-        date_from: Union[datetime, str, int, timedelta],
-        date_to: Union[datetime, str, int, timedelta],
-    ) -> list["LiqpayCallbackDict"]:
-        """
-        Get an archive of received payments
+    def payments(self, **kwargs: "Unpack[PaymentsParams]"):
+        """Make a `reports` action request and parse the result as JSON."""
+        result = self.reports(resp_format="json", **kwargs)
+        return cast(list[dict[str, Any]], self.decoder.decode(result))
 
-        For a significant amount of data use `liqpy.client.Client.reports` with `csv` format instead.
-        """
-        return self.decoder.decode(self.reports(date_from, date_to, format="json"))
+    def subscribe(self, **kwargs: Unpack["SubscribeParams"]):
+        """Make a `subscribe` action request."""
+        return self.request("subscribe", **kwargs)
 
-    def subscribe(
-        self,
-        /,
-        order_id: str | UUID,
-        amount: Number,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        subscribe_periodicity: "SubscribePeriodicity",
-        subscribe_date_start: datetime | str | timedelta | None | Number,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> "LiqpayCallbackDict":
-        """
-        Create an order with recurring payment
+    def subscription(self, **kwargs: Unpack["PaymentDict"]):
+        """Edit an existing subscription."""
+        return self.request("subscribe_update", **kwargs)
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe/doc)
-        """
-        return self.request(
-            "subscribe",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            subscribe_date_start=subscribe_date_start,
-            subscribe_periodicity=subscribe_periodicity,
-            **kwargs,
-        )
+    def data(self, **kwargs: "Unpack[DataParams]"):
+        """Adding an info to already created payment."""
+        return self.request("data", **kwargs)
 
-    def subscription(
-        self,
-        /,
-        order_id: str | UUID,
-        *,
-        amount: Number,
-        currency: "Currency",
-        description: str,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> "LiqpayCallbackDict":
-        """
-        Edit an existing recurring payment
+    def ticket(self, **kwargs: Unpack["TicketParams"]) -> None:
+        """Send a receipt to the customer."""
+        self.request("ticket", **kwargs)
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe_update/doc)
-        """
-        return self.request(
-            "subscribe_update",
-            order_id=order_id,
-            amount=amount,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
-
-    def data(self, /, opid: str | int | UUID, *, info: str) -> "LiqpayCallbackDict":
-        """
-        Adding an info to already created payment
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/data/doc)
-        """
-        return self.request("data", opid=opid, info=info)
-
-    def ticket(
-        self,
-        /,
-        order_id: str | UUID,
-        email: str,
-        *,
-        payment_id: Optional[int] = None,
-        language: Optional["Language"] = None,
-    ) -> None:
-        """
-        Send a receipt to the customer
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/ticket/doc)
-        """
-        self.request(
-            "ticket",
-            order_id=order_id,
-            email=email,
-            payment_id=payment_id,
-            language=language,
-        )
-
-    def status(self, opid: int | str | UUID, /) -> "LiqpayCallbackDict":
-        """
-        Get the status of a payment
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/status/doc)
-        """
-        return self.request("status", opid=opid)
+    def status(self, **kwargs: "Unpack[IdParams]"):
+        """Get the status of a payment."""
+        return self.request("status", **kwargs)
 
 
 class AsyncClient(BaseClient):
@@ -622,14 +366,21 @@ class AsyncClient(BaseClient):
         /,
         public_key: str | None = None,
         private_key: str | None = None,
-        **kwargs: Unpack[InitParams],
+        *,
+        encoder: Optional[LiqpayEncoder] = None,
+        decoder: Optional[LiqpayDecoder] = None,
     ):
-        super().__init__(public_key=public_key, private_key=private_key, **kwargs)
+        super().__init__(
+            public_key=public_key,
+            private_key=private_key,
+            encoder=encoder,
+            decoder=decoder,
+        )
         self._client = _AsyncClient(
             headers=COMMON_HEADERS, base_url=BASE_URL, follow_redirects=False
         )
 
-    async def __aenter__(self) -> "_AsyncClient":
+    async def __aenter__(self):
         await self._client.__aenter__()
         return self
 
@@ -640,274 +391,72 @@ class AsyncClient(BaseClient):
         """Close the client session"""
         await self._client.aclose()
 
-    async def request(self, /, action: "Action", **kwargs: "LiqpayRequestDict") -> dict:
+    async def request(self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"):
+        """Make a request to LiqPay API with the specified action and parameters."""
         content = self.payload(action, **kwargs)
         response = await self._client.request("POST", REQUEST_ENDPOINT, content=content)
         return self._handle_response(response.raise_for_status(), action)
 
     async def reports(
         self,
-        /,
-        date_from: Union[datetime, str, int, timedelta],
-        date_to: Union[datetime, str, int, timedelta],
         *,
-        format: Optional["Format"] = None,
+        timeout: TimeoutParam = USE_CLIENT_DEFAULT,
+        **kwargs: "Unpack[ReportsParams]",
     ) -> str:
-        content = self.payload(
-            "reports",
-            date_from=date_from,
-            date_to=date_to,
-            resp_format=format,
-        )
-        response = await self._client.request("POST", REQUEST_ENDPOINT, content=content)
-        return self._handle_reports_response(response.raise_for_status(), format)
-
-    async def pay(
-        self,
-        /,
-        amount: Number,
-        order_id: str | UUID,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        **kwargs: "LiqpayRequestDict",
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `pay` action from LiqPay API
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/pay/doc)
-        """
-        return await self.request(
-            "pay",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
-
-    async def hold(
-        self,
-        /,
-        amount: Number,
-        order_id: str | UUID,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        **kwargs: "LiqpayRequestDict",
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `hold` action from LiqPay API
-
-        Use `liqpy.client.Client.complete` to complete the hold.
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold/doc)
-        """
-        return await self.request(
-            "hold",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
-
-    async def unsubscribe(self, /, opid: int | str | UUID) -> "LiqpayCallbackDict":
-        """
-        Cancel recurring payments for the order
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/unsubscribe/doc)
-        """
-        return await self.request("unsubscribe", opid=opid)
-
-    async def refund(
-        self,
-        /,
-        opid: int | str | UUID,
-        *,
-        amount: Number | None = None,
-    ) -> "LiqpayRefundDict":
-        """
-        Make a refund request to LiqPay API
-
-        Use `payment_id` (`int` type) to refund from recurring payments.
-        """
-        return await self.request("refund", opid=opid, amount=amount)
-
-    async def complete(
-        self, /, opid: int | str | UUID, *, amount: Number | None = None
-    ) -> "LiqpayCallbackDict":
-        """
-        Request a `hold_completion` action from LiqPay API
-
-        Use `liqpy.client.Client.hold` to request a hold action.
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/hold_completion/doc)
-        """
-        return await self.request("hold_completion", opid=opid, amount=amount)
-
-    async def checkout(
-        self,
-        /,
-        action: Literal["auth", "pay", "hold", "subscribe", "paydonate"],
-        *,
-        order_id: str | UUID,
-        amount: Number,
-        currency: "Currency",
-        description: str,
-        expired_date: str | datetime | timedelta | None = None,
-        paytypes: Optional[list["PayOption"]] = None,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> str:
-        """
-        Make a Client-Server checkout request to LiqPay API
-
-        Returns a url to redirect the user to.
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/checkout/doc)
-        """
-        assert (
-            action in CHECKOUT_ACTIONS
-        ), "Invalid action. Must be one of: %s" % ",".join(CHECKOUT_ACTIONS)
-        content = self.payload(
-            action,
-            order_id=order_id,
-            amount=amount,
-            currency=currency,
-            description=description,
-            expired_date=expired_date,
-            paytypes=paytypes,
-            **kwargs,
-        )
-
+        """Make a `reports` action request."""
+        content = self.payload("reports", **kwargs)
         response = await self._client.request(
-            "POST", CHECKOUT_ENDPOINT, content=content
+            "POST", REQUEST_ENDPOINT, content=content, timeout=timeout
         )
+        return self._handle_reports_response(response.raise_for_status(), kwargs.get("resp_format"))
+
+    async def pay(self, **kwargs: "Unpack[PayParams]"):
+        """Make a `pay` action request."""
+        return cast("PayResult", await self.request("pay", **kwargs))
+
+    async def hold(self, **kwargs: "Unpack[LiqpayParams]"):
+        """Make a `hold` action request."""
+        return await self.request("hold", **kwargs)
+
+    async def unsubscribe(self, order_id: str | UUID):
+        """Make an `unsubscribe` action request."""
+        return await self.request("unsubscribe", order_id=order_id)
+
+    async def refund(self, **kwargs: "Unpack[AmountIdParams]"):
+        """Make a `refund` action request."""
+        return cast("LiqpayRefundDict", await self.request("refund", **kwargs))
+
+    async def complete(self, **kwargs: "Unpack[AmountIdParams]"):
+        """Make a `hold_completion` action request."""
+        return await self.request("hold_completion", **kwargs)
+
+    async def checkout(self, **kwargs: Unpack["CheckoutParams"]) -> str:
+        """Make a Client-Server checkout request. Returns a URL to redirect the user to."""
+        content = self.payload(**kwargs)
+        response = await self._client.request("POST", self.checkout_endpoint, content=content)
         return self._handle_checkout_response(response)
 
-    async def payments(
-        self,
-        /,
-        date_from: Union[datetime, str, int, timedelta],
-        date_to: Union[datetime, str, int, timedelta],
-    ) -> list["LiqpayCallbackDict"]:
-        """
-        Get an archive of received payments
+    async def payments(self, **kwargs: "Unpack[PaymentsParams]"):
+        """Make a `reports` action request and parse the result as JSON."""
+        result = await self.reports(resp_format="json", **kwargs)
+        return cast(list[dict[str, Any]], self.decoder.decode(result))
 
-        For a significant amount of data use `liqpy.client.Client.reports` with `csv` format instead.
-        """
-        result = await self.reports(date_from, date_to, format="json")
-        return self.decoder.decode(result)
+    async def subscribe(self, **kwargs: Unpack["SubscribeParams"]):
+        """Make a `subscribe` action request."""
+        return await self.request("subscribe", **kwargs)
 
-    async def subscribe(
-        self,
-        /,
-        order_id: str | UUID,
-        amount: Number,
-        card: str,
-        card_cvv: str,
-        card_exp_month: str,
-        card_exp_year: str,
-        currency: "Currency",
-        description: str,
-        subscribe_periodicity: "SubscribePeriodicity",
-        subscribe_date_start: datetime | str | timedelta | None | Number,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> "LiqpayCallbackDict":
-        """
-        Create an order with recurring payment
+    async def subscription(self, **kwargs: Unpack["PaymentDict"]):
+        """Edit an existing subscription."""
+        return await self.request("subscribe_update", **kwargs)
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe/doc)
-        """
-        return await self.request(
-            "subscribe",
-            order_id=order_id,
-            amount=amount,
-            card=card,
-            card_cvv=card_cvv,
-            card_exp_month=card_exp_month,
-            card_exp_year=card_exp_year,
-            currency=currency,
-            description=description,
-            subscribe_date_start=subscribe_date_start,
-            subscribe_periodicity=subscribe_periodicity,
-            **kwargs,
-        )
+    async def data(self, **kwargs: "Unpack[DataParams]"):
+        """Adding an info to already created payment."""
+        return await self.request("data", **kwargs)
 
-    async def subscription(
-        self,
-        /,
-        order_id: str | UUID,
-        *,
-        amount: Number,
-        currency: "Currency",
-        description: str,
-        **kwargs: Unpack["LiqpayRequestDict"],
-    ) -> "LiqpayCallbackDict":
-        """
-        Edit an existing recurring payment
+    async def ticket(self, **kwargs: Unpack["TicketParams"]) -> None:
+        """Send a receipt to the customer."""
+        await self.request("ticket", **kwargs)
 
-        [Documentation](https://www.liqpay.ua/en/documentation/api/aquiring/subscribe_update/doc)
-        """
-        return await self.request(
-            "subscribe_update",
-            order_id=order_id,
-            amount=amount,
-            currency=currency,
-            description=description,
-            **kwargs,
-        )
-
-    async def data(
-        self, /, opid: str | int | UUID, *, info: str
-    ) -> "LiqpayCallbackDict":
-        """
-        Adding an info to already created payment
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/data/doc)
-        """
-        return await self.request("data", opid=opid, info=info)
-
-    async def ticket(
-        self,
-        /,
-        order_id: str | UUID,
-        email: str,
-        *,
-        payment_id: Optional[int] = None,
-        language: Optional["Language"] = None,
-    ) -> None:
-        """
-        Send a receipt to the customer
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/ticket/doc)
-        """
-        await self.request(
-            "ticket",
-            order_id=order_id,
-            email=email,
-            payment_id=payment_id,
-            language=language,
-        )
-
-    async def status(self, opid: int | str | UUID, /) -> "LiqpayCallbackDict":
-        """
-        Get the status of a payment
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/information/status/doc)
-        """
-        return await self.request("status", opid=opid)
+    async def status(self, **kwargs: "Unpack[IdParams]"):
+        """Get the status of a payment."""
+        return await self.request("status", **kwargs)

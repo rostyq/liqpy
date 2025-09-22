@@ -8,7 +8,7 @@ from liqpy.client import Client
 from liqpy.dev import LiqpyWarning
 
 if TYPE_CHECKING:
-    from liqpy.types import LiqpayCallbackDict
+    from liqpy.types.response import LiqpayCallbackDict
 
 
 class LiqpayHandler(BaseHTTPRequestHandler):
@@ -132,6 +132,7 @@ if __name__ == "__main__":
     logger = getLogger()
 
     with LiqpayServer(client=Client(), callback=lambda c: pprint(c)) as server:
+        assert len(server.server_address) == 2
         host, port = server.server_address
         logger.info(f"LiqPy Test Server listening on {host}:{port}")
 

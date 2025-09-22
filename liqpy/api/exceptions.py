@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
     from httpx import Response
@@ -31,17 +31,17 @@ class LiqPayException(Exception):
     """Base LiqPay API exception"""
 
     code: "LiqPayErrcode"
-    details: dict
+    details: dict[str, Any] = {}
     response: Optional["Response"] = None
 
     def __init__(
         self,
         /,
-        code: str | None = None,
+        code: Optional["LiqPayErrcode"] = None,
         description: str | None = None,
         *,
         response: Optional["Response"] = None,
-        details: Optional[dict] = None,
+        details: Optional[dict[str, Any]] = None,
     ):
         if description is not None:
             description = description.strip(" .")
@@ -50,7 +50,8 @@ class LiqPayException(Exception):
         super().__init__(description or UNKNOWN_ERRMSG)
         self.code = code or UNKNOWN_ERRCODE
         self.response = response
-        self.details = details
+        if details is not None:
+            self.details = details
 
 
 class LiqPayAntiFraudException(LiqPayException):
@@ -115,11 +116,11 @@ def get_exception_cls(code: str | None = None) -> type[LiqPayException]:
 
 
 def exception(
-    code: str | None = None,
+    code: Optional["LiqPayErrcode"] = None,
     description: str | None = None,
     *,
     response: Optional["Response"] = None,
-    details: Optional[dict] = None,
+    details: Optional[dict[str, Any]] = None,
 ) -> LiqPayException:
     """Create LiqPay API exception instance by error code and description"""
     cls = get_exception_cls(code)
