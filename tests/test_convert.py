@@ -67,10 +67,10 @@ class TestToDate:
         assert isinstance(result, date)
     
     @mark.parametrize("input_value,expected", [
-        (1684166400, date(2023, 5, 15)),  # 2023-05-15 16:00:00 UTC
+        (1684166400000, date(2023, 5, 15)),  # 2023-05-15 16:00:00 UTC
         (1684166400.5, date(2023, 5, 15)),  # With fractional seconds
         (0, date(1970, 1, 1)),  # Unix epoch
-        (946684800, date(2000, 1, 1)),  # Y2K
+        (946684800000, date(2000, 1, 1)),  # Y2K
     ])
     def test_to_date_from_timestamp(self, input_value, expected):
         """Test converting timestamp (float/int) to date."""
@@ -131,10 +131,10 @@ class TestToDatetime:
             to_datetime(invalid_string)
     
     @mark.parametrize("input_value,expected", [
-        (1684166445, datetime(2023, 5, 15, 16, 0, 45, tzinfo=UTC)),  # Int timestamp
+        (1684166445000, datetime(2023, 5, 15, 16, 0, 45, tzinfo=UTC)),  # Int timestamp
         (1684166445.5, datetime(2023, 5, 15, 16, 0, 45, 500000, tzinfo=UTC)),  # Float timestamp
         (0, datetime(1970, 1, 1, 0, 0, 0, tzinfo=UTC)),  # Unix epoch
-        (946684800, datetime(2000, 1, 1, 0, 0, 0, tzinfo=UTC)),  # Y2K
+        (946684800000, datetime(2000, 1, 1, 0, 0, 0, tzinfo=UTC)),  # Y2K
     ])
     def test_to_datetime_from_timestamp(self, input_value, expected):
         """Test converting timestamp to datetime."""

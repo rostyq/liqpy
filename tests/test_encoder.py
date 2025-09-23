@@ -104,6 +104,7 @@ def test_checkout_example(monkeypatch, encoder, payload, data, signature):
     
     # Patch the sign function to add newlines to base64 data like official docs
     from liqpy.api import sign as original_sign
+    from base64 import b64decode, b64encode
     def patched_sign(data: bytes, key: bytes) -> bytes:
         # Add newlines to base64 data every 76 characters (like bash base64 command)
         data_str = data.decode()
@@ -112,13 +113,16 @@ def test_checkout_example(monkeypatch, encoder, payload, data, signature):
     
     monkeypatch.setattr("liqpy.api.encoder.sign", patched_sign)
     
-    result = encoder(
-        payload.pop("action"),
-        payload.pop("version"),
-        public_key="your_public_key",
-        private_key=b"your_private_key",
-        **payload,
+    result = encoder.payload(
+        b"your_private_key",
+        {
+            "version": payload.pop("version"),
+            "public_key": "your_public_key",
+            "action": payload.pop("action"),
+            **payload,
+        }
     )
     qs = parse_qs(result.decode())
+
     assert qs["data"][0] == data
     assert qs["signature"][0] == signature

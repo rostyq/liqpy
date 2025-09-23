@@ -1,5 +1,6 @@
-from typing import Any, Optional, Literal, TYPE_CHECKING, cast
-from datetime import datetime, timedelta
+from typing import Any, Optional, Literal, TYPE_CHECKING, cast, Callable, Any
+from functools import wraps
+from datetime import datetime, timedelta, date, UTC
 from decimal import Decimal
 from collections.abc import Iterable, Mapping
 from re import fullmatch
@@ -73,20 +74,31 @@ def validate_amount(value, /, name: str = DEFAULT_NAME) -> Decimal:
         raise TypeError(f"{name} must be a decimal number")
 
 
+def validate_datetype(fn: Callable[[Any, str], Any]):
+    @wraps(fn)
+    def wrapper(value, /, name: str):
+        if isinstance(value, (datetime, timedelta, date, int, float, str, tuple)):
+            try:
+                return fn(value, name)
+            except ValueError as e:
+                raise ValueError(f"Invalid {name}. {e}") from e
+        else:
+            raise TypeError(
+                f"{name} must be one of: datetime, timedelta, date, "
+                "int (milliseconds), float (seconds), ISO8601 string, tuple (YEAR, MONTH, DAY)"
+            )
+
+    return wrapper
+
+
+@validate_datetype
 def validate_dateedge(value, /, name: str = "date") -> int:
-    if isinstance(value, (datetime, timedelta)):
-        return to_milliseconds(value)
-    else:
-        raise TypeError(f"{name} must be a datetime or timedelta")
+    return to_milliseconds(value)
 
 
+@validate_datetype
 def validate_datetime(value, /, name: str = "datetime") -> datetime:
-    if isinstance(value, (datetime, timedelta, str)):
-        return to_datetime(value)
-    else:
-        raise TypeError(
-            f"{name} must be a datetime, timedelta or string containing a ISO8601 format date"
-        )
+    return to_datetime(value)
 
 
 def validate_one(value, /) -> Optional[Literal[1]]:
@@ -98,7 +110,9 @@ class LiqpayValidator:
 
     def __call__(self, request: "LiqpayRequest", /) -> "LiqpayRequest":
         errors: list[TypeError | ValueError] = []
-        request = cast("LiqpayRequest", {k: v for k, v in request.items() if k is not None})
+        request = cast(
+            "LiqpayRequest", {k: v for k, v in request.items() if v is not None}
+        )
 
         # pre-process action-specific requirements
         match action := request.get("action"):
@@ -112,11 +126,11 @@ class LiqpayValidator:
                 request["subscribe"] = True
 
                 if request.get("subscribe_date_start") is None:
-                    request["subscribe_date_start"] = datetime.now()
+                    request["subscribe_date_start"] = datetime.now(UTC)
 
             case "letter_of_credit":
                 request["letter_of_credit"] = True
-        
+
         # validate and transform parameters
         for key, value in request.items():
             try:
@@ -151,7 +165,9 @@ class LiqpayValidator:
                 if date_from is not None and date_to is not None:
                     assert isinstance(date_from, int) and isinstance(date_to, int)
                     if date_from >= date_to:
-                        errors.append(ValueError("date_from must be earlier than date_to"))
+                        errors.append(
+                            ValueError("date_from must be earlier than date_to")
+                        )
 
         # rename keys to match API requirements
         if (ds_trans_id := request.pop("ds_trans_id", None)) is not None:
@@ -240,7 +256,7 @@ class LiqpayValidator:
             return value
         else:
             raise ValueError("language must be uk or en")
-    
+
     def ip(self, value, /):
         return IPv4Address(value)
 
@@ -430,7 +446,7 @@ class LiqpayValidator:
             raise TypeError(
                 f"split_rules must be an iterable. Got {type(value).__name__} instead."
             )
-    
+
     def split_tickets_only(self, value, /):
         if isinstance(value, bool):
             return value
@@ -476,7 +492,7 @@ class LiqpayValidator:
             raise TypeError(
                 f"rro_info must be a {FiscalInfo.__class__.__qualname__} or dict instance. Got {type(value).__name__} instead."
             )
-    
+
     def prepare(self, value, /):
         if value == "tariffs":
             return value
@@ -484,16 +500,16 @@ class LiqpayValidator:
             return 1
         else:
             raise ValueError("prepare must be 1, True or 'tariffs'")
-    
+
     def reccuring(self, value, /):
         return bool(value)
-    
+
     def eci(self, value, /):
         if value in ("02", "05", "06", "07"):
             return value
         else:
             raise ValueError("eci must be '02', '05', '06' or '07'")
-        
+
     def cavv(self, value, /):
         if isinstance(value, str):
             return value
@@ -505,7 +521,7 @@ class LiqpayValidator:
             return value
         else:
             raise TypeError("tdsv must be a string")
-    
+
     def ds_trans_id(self, value, /):
         if isinstance(value, str):
             return value

@@ -1,8 +1,5 @@
 from typing import Optional, Literal, Union, TYPE_CHECKING, Unpack, Any, cast
-from warnings import warn
 from os import environ
-from datetime import datetime, timedelta
-from numbers import Number
 from re import search
 from uuid import UUID
 
@@ -15,8 +12,6 @@ from httpx import (
 from httpx._client import UseClientDefault
 from httpx._types import TimeoutTypes
 
-from liqpy.dev import LiqpyWarning
-
 from .api import (
     API_VERSION,
     BASE_URL,
@@ -24,6 +19,7 @@ from .api import (
     REQUEST_ENDPOINT,
     CHECKOUT_ENDPOINT,
     is_sandbox,
+    sign,
 )
 from .api.decoder import LiqpayDecoder
 from .api.encoder import LiqpayEncoder
@@ -31,7 +27,7 @@ from .api.validation import LiqpayValidator
 from .api.exceptions import exception
 
 if TYPE_CHECKING:
-    from .types.common import *
+    from .types import *
     from .types.request import *
     from .types.response import *
 
@@ -107,26 +103,33 @@ class BaseClient:
         self._public_key = public_key
         self.__private_key = private_key.encode()
 
-        warn(
-            "Using %s LiqPay API" % ("sandbox" if sandbox else "live"),
-            stacklevel=2,
-            category=LiqpyWarning,
-        )
-
     def __repr__(self):
         return f'{self.__class__.__name__}(public_key="{self._public_key}")'
+
+    def _request_dict(
+        self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"
+    ) -> "LiqpayRequest":
+        return {
+            "action": action,
+            "version": API_VERSION,
+            "public_key": self._public_key,
+            **kwargs,
+        }
+
+    def sign(self, /, data: bytes) -> bytes:
+        """Sign the given data using the private key."""
+        return sign(data, self.__private_key)
+
+    def form(self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"):
+        return self.encoder.form(
+            self.__private_key, self._request_dict(action, **kwargs)
+        )
 
     def payload(
         self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"
     ) -> bytes:
         return self.encoder.payload(
-            self.__private_key,
-            {
-                "action": action,
-                "version": API_VERSION,
-                "public_key": self._public_key,
-                **kwargs,
-            },
+            self.__private_key, self._request_dict(action, **kwargs)
         )
 
     def _handle_response(
@@ -328,9 +331,13 @@ class Client(BaseClient):
         response = self._client.request("POST", self.checkout_endpoint, content=content)
         return self._handle_checkout_response(response)
 
-    def payments(self, **kwargs: "Unpack[PaymentsParams]"):
+    def payments(
+        self,
+        timeout: TimeoutParam = USE_CLIENT_DEFAULT,
+        **kwargs: "Unpack[PaymentsParams]",
+    ):
         """Make a `reports` action request and parse the result as JSON."""
-        result = self.reports(resp_format="json", **kwargs)
+        result = self.reports(resp_format="json", timeout=timeout, **kwargs)
         return cast(list[dict[str, Any]], self.decoder.decode(result))
 
     def subscribe(self, **kwargs: Unpack["SubscribeParams"]):
@@ -391,7 +398,9 @@ class AsyncClient(BaseClient):
         """Close the client session"""
         await self._client.aclose()
 
-    async def request(self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"):
+    async def request(
+        self, /, action: "LiqpayAction", **kwargs: "Unpack[LiqpayParams]"
+    ):
         """Make a request to LiqPay API with the specified action and parameters."""
         content = self.payload(action, **kwargs)
         response = await self._client.request("POST", REQUEST_ENDPOINT, content=content)
@@ -408,7 +417,9 @@ class AsyncClient(BaseClient):
         response = await self._client.request(
             "POST", REQUEST_ENDPOINT, content=content, timeout=timeout
         )
-        return self._handle_reports_response(response.raise_for_status(), kwargs.get("resp_format"))
+        return self._handle_reports_response(
+            response.raise_for_status(), kwargs.get("resp_format")
+        )
 
     async def pay(self, **kwargs: "Unpack[PayParams]"):
         """Make a `pay` action request."""
@@ -433,12 +444,18 @@ class AsyncClient(BaseClient):
     async def checkout(self, **kwargs: Unpack["CheckoutParams"]) -> str:
         """Make a Client-Server checkout request. Returns a URL to redirect the user to."""
         content = self.payload(**kwargs)
-        response = await self._client.request("POST", self.checkout_endpoint, content=content)
+        response = await self._client.request(
+            "POST", self.checkout_endpoint, content=content
+        )
         return self._handle_checkout_response(response)
 
-    async def payments(self, **kwargs: "Unpack[PaymentsParams]"):
+    async def payments(
+        self,
+        timeout: TimeoutParam = USE_CLIENT_DEFAULT,
+        **kwargs: "Unpack[PaymentsParams]",
+    ):
         """Make a `reports` action request and parse the result as JSON."""
-        result = await self.reports(resp_format="json", **kwargs)
+        result = await self.reports(resp_format="json", timeout=timeout, **kwargs)
         return cast(list[dict[str, Any]], self.decoder.decode(result))
 
     async def subscribe(self, **kwargs: Unpack["SubscribeParams"]):

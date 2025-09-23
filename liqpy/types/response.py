@@ -5,7 +5,7 @@ from datetime import datetime
 from ipaddress import IPv4Address
 
 from .error import LiqPayErrcode
-from .common import (
+from . import (
     Currency,
     PayType,
     Language,

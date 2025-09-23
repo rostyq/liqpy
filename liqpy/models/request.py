@@ -8,7 +8,7 @@ from enum import StrEnum
 from liqpy.convert import to_date
 
 if TYPE_CHECKING:
-    from liqpy.types.common import FiscalItemDict
+    from liqpy.types import FiscalItemDict
     from liqpy.types.request import (
         DetailAddendaDict,
         FiscalInfoDict,

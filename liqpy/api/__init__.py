@@ -1,5 +1,5 @@
 from base64 import b64encode
-from hashlib import sha1, sha3_256
+from hashlib import sha1
 from sys import version_info as v
 
 from httpx import __version__ as _httpx_version

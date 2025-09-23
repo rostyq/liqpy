@@ -4,9 +4,10 @@ from uuid import UUID
 from decimal import Decimal
 from ipaddress import IPv4Address
 
+from liqpy.convert import DateType
 from liqpy.models.request import DetailAddenda, SplitRule, FiscalInfo
 
-from .common import *
+from . import *
 
 
 __all__ = [
@@ -23,19 +24,18 @@ __all__ = [
     "SenderRequiredDict",
     "PayParams",
     "PaymentDict",
-    "DateRangeEdge",
     "Prepare",
     "IdParams",
     "AmountIdParams",
     "DataParams",
     "TicketParams",
     "SubscribeParams",
+    "DateType"
 ]
 
 Prepare = bool | Literal["tariffs"]
 
 ElectronicCommerceIndicator = Literal["02", "05", "06", "07"]
-DateRangeEdge = int | str | datetime | timedelta
 
 
 class OtherDict(TypedDict, total=False):
@@ -80,7 +80,7 @@ class UrlDict(TypedDict, total=False):
 
 class SubscribeDict(TypedDict, total=False):
     subscribe: bool | None
-    subscribe_date_start: str | datetime | timedelta | None
+    subscribe_date_start: DateType | None
     subscribe_periodicity: SubscribePeriodicity | None
 
 
@@ -101,14 +101,14 @@ class LiqpayParams(
     description: str | None
 
     rro_info: FiscalInfoDict | FiscalInfo | None
-    expired_date: str | datetime | timedelta | None
+    expired_date: DateType | None
     language: Language | None
     paytype: PayType | None
     paytypes: Iterable[PayOption] | None
     verifycode: bool | None
     email: str | None
-    date_from: DateRangeEdge | None
-    date_to: DateRangeEdge | None
+    date_from: DateType | None
+    date_to: DateType | None
     resp_format: Format | None
 
     prepare: Prepare | None
@@ -148,8 +148,8 @@ class LiqpayRequest(LiqpayDict, LiqpayParams):
 
 
 class PaymentsParams(TypedDict):
-    date_from: DateRangeEdge
-    date_to: DateRangeEdge
+    date_from: DateType
+    date_to: DateType
 
 
 class ReportsParams(PaymentsParams, total=False):
