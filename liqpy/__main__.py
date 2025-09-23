@@ -306,9 +306,7 @@ class App:
         return pk if (pk := self._private_key()) else self._err_required("PRIVATE_KEY")
 
     def input(self):
-        if self.command in ("reports", "status", "unsubscribe", "refund"):
-            return StringIO("")
-        elif isinstance(argin := self.args.input, Path):
+        if isinstance(argin := self.args.input, Path):
             return argin.open()
         elif argin is None:
             return (
@@ -342,11 +340,23 @@ class App:
         except ValueError as e:
             self.ap.error(str(e))
 
-    def request(self, input: str, public_key: str | None = None):
-        return cast(
-            LiqpayRequest,
-            {**self.decoder.decode(input), "public_key": public_key or self.public_key},
-        )
+    def read_request(self, public_key: str | None = None):
+        with self.input() as input:
+            return cast(
+                LiqpayRequest,
+                {
+                    **self.decoder.decode(input.read()),
+                    "public_key": public_key or self.public_key,
+                },
+            )
+
+    def read_params(self):
+        with self.input() as input:
+            return cast(LiqpayParams, self.decoder.decode(input.read()))
+
+    def read_input(self):
+        with self.input() as input:
+            return input.read()
 
     def _load_env(self):
         if not isinstance(p := self.args.env_file, Path):
@@ -359,23 +369,22 @@ class App:
                     value = value.strip().strip('"').strip("'")
                     environ.setdefault(key, value)
 
-    def _run_client(self, input: str, client: Client):
+    def _run_client(self, client: Client):
         match self.command:
             case "request":
-                return client.request(
-                    action=self.args.action, **self.decoder.decode(input)
-                )
+                return client.request(action=self.args.action, **self.read_params())
 
             case "status":
                 return client.status(
-                    order_id=self.args.order_id, payment_id=self.args.payment_id
+                    order_id=self.args.order_id,
+                    payment_id=self.args.payment_id,
                 )
 
             case "data":
                 return client.data(
                     order_id=self.args.order_id,
                     payment_id=self.args.payment_id,
-                    info=input,
+                    info=self.read_input(),
                 )
 
             case "unsubscribe" | "unsub":
@@ -393,7 +402,7 @@ class App:
                     order_id=self.args.order_id,
                     amount=self.args.amount,
                     currency=self.args.currency,
-                    description=input,
+                    description=self.read_input(),
                 )
 
             case command if command in [
@@ -447,12 +456,12 @@ class App:
 
             chunk_date_from = chunk_date_to
 
-    def _run(self, input: str):
+    def _run(self):
         self._load_env()
 
         match self.command:
             case "encode":
-                yield self.encoder(self.request(input)).decode()
+                yield self.encoder(self.read_request()).decode()
 
             case "sign":
                 yield sign(input.encode(), self.private_key.encode()).decode()
@@ -460,7 +469,7 @@ class App:
             case "form":
                 public_key, private_key = self._keys()
                 data, signature = self.encoder.form(
-                    private_key.encode(), self.request(input, public_key)
+                    private_key.encode(), self.read_request(public_key)
                 )
                 yield signature.decode()
                 yield "\n\n"
@@ -469,7 +478,7 @@ class App:
             case "payload":
                 public_key, private_key = self._keys()
                 yield self.encoder.payload(
-                    private_key.encode(), self.request(input, public_key)
+                    private_key.encode(), self.read_request(public_key)
                 ).decode()
 
             case "reports":
@@ -478,12 +487,12 @@ class App:
 
             case _:
                 with self.client() as client:
-                    if (result := self._run_client(input, client)) is not None:
+                    if (result := self._run_client(client)) is not None:
                         yield self.reporter.encode(result)
 
     def run(self):
-        with self.input() as input, self.output() as output:
-            for chunk in self._run(input.read()):
+        with self.output() as output:
+            for chunk in self._run():
                 output.write(chunk)
                 output.flush()
 
