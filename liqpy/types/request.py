@@ -4,7 +4,7 @@ from uuid import UUID
 from decimal import Decimal
 from ipaddress import IPv4Address
 
-from liqpy.convert import DateType
+from liqpy import DateType
 from liqpy.models.request import DetailAddenda, SplitRule, FiscalInfo
 
 from . import *
@@ -118,7 +118,7 @@ class LiqpayParams(
     split_rules: Iterable[SplitRuleDict | SplitRule] | None
     split_tickets_only: bool | None
 
-    ip: str | int | IPv4Address | None
+    ip: IPv4Address | str | int | None
 
     card: str | None
     card_exp_month: str | None
@@ -134,7 +134,7 @@ class LiqpayParams(
     mpi_pares: str | None
 
     letter_of_credit: bool | None
-    letter_of_credit_date: str | datetime | timedelta | None
+    letter_of_credit_date: datetime | timedelta | str | None
 
     recurring: bool | None
     eci: ElectronicCommerceIndicator | None
@@ -223,7 +223,7 @@ class SubscribeParams(
     ProductDict,
     total=False,
 ):
-    subscribe_date_start: Required[str | datetime | timedelta]
+    subscribe_date_start: Required[DateType]
     subscribe_periodicity: Required[SubscribePeriodicity]
     phone: str | None
     language: Language | None

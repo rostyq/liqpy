@@ -4,7 +4,7 @@ from enum import StrEnum, auto, Enum, member
 from datetime import datetime
 from dataclasses import dataclass
 
-from liqpy.convert import to_datetime
+from liqpy import to_datetime
 
 
 class Field(Enum):

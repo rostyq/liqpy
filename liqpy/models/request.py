@@ -5,7 +5,7 @@ from decimal import Decimal
 from collections import UserList
 from enum import StrEnum
 
-from liqpy.convert import to_date
+from liqpy import to_date
 
 if TYPE_CHECKING:
     from liqpy.types import FiscalItemDict

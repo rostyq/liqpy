@@ -8,7 +8,7 @@ from uuid import UUID
 from urllib.parse import urlparse
 from ipaddress import IPv4Address
 
-from liqpy.convert import noop, to_datetime, to_milliseconds
+from liqpy import noop, to_datetime, to_milliseconds
 from liqpy.models.request import (
     DetailAddenda,
     SplitRule,

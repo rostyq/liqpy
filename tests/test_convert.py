@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta, UTC
 
 from pytest import mark, raises
 
-from liqpy.convert import to_date, to_datetime, datetime_from_millis
+from liqpy import to_date, to_datetime, datetime_from_millis
 
 
 class TestToDate:
@@ -224,7 +224,7 @@ class TestIntegration:
     ])
     def test_round_trip_datetime_millis(self, original_dt):
         """Test converting datetime to millis and back."""
-        from liqpy.convert import to_milliseconds
+        from liqpy import to_milliseconds
         
         millis = to_milliseconds(original_dt)
         result = datetime_from_millis(millis)

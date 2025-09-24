@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from liqpy.api import sign
 from liqpy.api.exceptions import LiqPayRequestException
-from liqpy.convert import datetime_from_millis, noop
+from liqpy import datetime_from_millis, noop
 
 if TYPE_CHECKING:
     from liqpy.types.response import LiqpayCallbackDict
