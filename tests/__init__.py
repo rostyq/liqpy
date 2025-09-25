@@ -1,9 +1,4 @@
-from typing import TYPE_CHECKING
 from pytest import fixture
-
-if TYPE_CHECKING:
-    from liqpy.api.validation import LiqpayValidator
-
 
 __all__ = ("encoder", "decoder", "validator")
 
@@ -22,8 +17,8 @@ def validator():
     return LiqpayValidator()
 
 
-@fixture
-def encoder(validator: "LiqpayValidator"):
+@fixture()
+def encoder(validator, request):
     from liqpy.api.encoder import LiqpayEncoder
 
-    return LiqpayEncoder(validator, sort_keys=False)
+    return LiqpayEncoder(validator, **getattr(request, "param", {}))

@@ -1,14 +1,17 @@
+from typing import TYPE_CHECKING
 from datetime import datetime, date, UTC, timezone, timedelta
 from uuid import UUID
 from decimal import Decimal
 from json import loads, dumps
 from base64 import b64decode
 from urllib.parse import parse_qs
-from unittest.mock import patch
 
 from pytest import mark
 
 from . import *
+
+if TYPE_CHECKING:
+    from liqpy.api.encoder import LiqpayEncoder
 
 
 @mark.parametrize("data", [b"", b"test"])
@@ -90,29 +93,27 @@ def test_encode_dae(encoder, data):
         ),
     ],
 )
-def test_checkout_example(monkeypatch, encoder, payload, data, signature):
-    # Patch encoder to match official documentation formatting
-    monkeypatch.setattr(
-        encoder,
-        "encode",
-        lambda obj: encoder.__class__.encode(encoder, obj)
-        .replace(",", ", ")
-        .replace(":", " : ")
-        .replace("{", "{ ")
-        .replace("}", " }"),
-    )
-    
-    # Patch the sign function to add newlines to base64 data like official docs
+@mark.parametrize(
+    "encoder", [{"sort_keys": False, "separators": (", ", " : ")}], indirect=True
+)
+def test_checkout_example(monkeypatch, encoder: "LiqpayEncoder", payload, data, signature):
     from liqpy.api import sign as original_sign
-    from base64 import b64decode, b64encode
+
+    def patched_encode(obj: object) -> str:
+        return encoder.__class__.encode(encoder, obj).replace("{", "{ ").replace("}", " }")
+
     def patched_sign(data: bytes, key: bytes) -> bytes:
         # Add newlines to base64 data every 76 characters (like bash base64 command)
         data_str = data.decode()
-        data_with_newlines = '\n'.join(data_str[i:i+76] for i in range(0, len(data_str), 76))
+        data_with_newlines = "\n".join(
+            data_str[i : i + 76] for i in range(0, len(data_str), 76)
+        )
         return original_sign(data_with_newlines.encode(), key)
-    
+
+    # Patch to match the implementation in the example from the documentation
     monkeypatch.setattr("liqpy.api.encoder.sign", patched_sign)
-    
+    monkeypatch.setattr(encoder, "encode", patched_encode)
+
     result = encoder.payload(
         b"your_private_key",
         {
@@ -120,7 +121,7 @@ def test_checkout_example(monkeypatch, encoder, payload, data, signature):
             "public_key": "your_public_key",
             "action": payload.pop("action"),
             **payload,
-        }
+        },  # type: ignore
     )
     qs = parse_qs(result.decode())
 
