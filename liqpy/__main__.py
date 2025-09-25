@@ -25,8 +25,6 @@ from io import StringIO
 from datetime import timedelta, datetime, UTC
 from decimal import Decimal
 from json.decoder import JSONDecodeError
-from _colorize import can_colorize, get_theme, Syntax
-from re import compile, sub, VERBOSE, Match
 
 from liqpy import __version__
 from liqpy.client import Client
@@ -51,34 +49,6 @@ DataAction = Literal[
 ]
 Command = Union[DataAction, LiqpayAction]
 ReportFormat = Literal["csv", "json", "ndjson"]
-
-
-_color_pattern = compile(
-    r"""
-    (?P<key>"(\\.|[^"\\])*")(?=:)           |
-    (?P<string>"(\\.|[^"\\])*")             |
-    (?P<number>NaN|-?Infinity|[0-9\-+.Ee]+) |
-    (?P<boolean>true|false)                 |
-    (?P<null>null)
-""",
-    VERBOSE,
-)
-
-
-def _colorize_json(json_str: str, theme: Syntax):
-    def _replace_match_callback(match: Match) -> str:
-        for group, color in [
-            ("key", "definition"),
-            ("string", "string"),
-            ("number", "number"),
-            ("boolean", "keyword"),
-            ("null", "keyword"),
-        ]:
-            if m := match.group(group):
-                return f"{theme[color]}{m}{theme.reset}"
-        return match.group()
-
-    return sub(_color_pattern, _replace_match_callback, json_str)
 
 
 class OrderOrPaymentId(TypedDict):
@@ -205,17 +175,18 @@ class CustomValidator(LiqpayValidator):
         self.error = error
 
     def __call__(self, obj: Any) -> Any:
+        token = NOW.set(datetime.now(UTC))
         try:
             return super().__call__(obj)
         except* (ValueError, TypeError) as g:
             self.error(g.message + "\n" + "\n".join(str(err) for err in g.exceptions))
+        finally:
+            NOW.reset(token)
 
 
 class App:
     def __init__(self):
-        self.ap = ap = ArgumentParser(
-            description=__doc__, color=isatty(stdout.fileno())
-        )
+        self.ap = ap = ArgumentParser(description=__doc__)
         self.validator = CustomValidator(ap.error)
         self.encoder = LiqpayEncoder(self.validator)
         self.decoder = CustomDecoder(ap.error)
@@ -716,16 +687,10 @@ class App:
 
         first_chunk = next(other_chunks := self._run())
         with self.output() as output:
-            if "json" in getattr(self.args, "format", "") and can_colorize(file=output):
-                t = get_theme(tty_file=output).syntax
-                write = lambda s: output.write(_colorize_json(s, t))
-            else:
-                write = output.write
-
-            write(first_chunk)
+            output.write(first_chunk)
 
             for chunk in other_chunks:
-                write(chunk)
+                output.write(chunk)
 
             output.flush()
 
@@ -733,8 +698,7 @@ class App:
 
 
 try:
-    with NOW.set(datetime.now(UTC)):
-        App().run()
+    App().run()
 
 except LiqPayException as e:
     print(f"Error {e.code}: {e}", file=stderr)
