@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, date, UTC
 from contextvars import ContextVar
 
 
-__version__ = "0.20.0-rc.1"
+__version__ = "0.20.0"
 __all__ = [
     "__version__",
     "DECTX",
