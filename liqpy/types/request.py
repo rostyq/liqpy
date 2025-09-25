@@ -96,7 +96,7 @@ class LiqpayParams(
     order_id: str | UUID | None
     payment_id: str | int | None
 
-    amount: Decimal | str | None
+    amount: Amount | None
     currency: Currency | None
     description: str | None
 
@@ -158,7 +158,7 @@ class ReportsParams(PaymentsParams, total=False):
 
 class PaymentDict(TypedDict, total=True):
     order_id: str | UUID
-    amount: Decimal | str
+    amount: Amount
     currency: Currency
     description: str
 
@@ -240,7 +240,7 @@ class IdParams(TypedDict, total=False):
 
 
 class AmountIdParams(IdParams, total=False):
-    amount: Decimal | str | None
+    amount: Amount | None
 
 
 class DataParams(IdParams):

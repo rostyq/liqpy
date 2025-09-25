@@ -28,6 +28,7 @@ __all__ = [
     "FiscalInfoDict",
     "LiqpayDict",
     "BonusType",
+    "Amount",
 ]
 
 
@@ -123,9 +124,8 @@ LiqpayStatus = CallbackStatus = Union[
     SubscriptionStatus, FinalStatus, ConfirmationStatus, OtherStatus
 ]
 
+Amount = Decimal | str | int
 ThreeDS = Literal[5, 6, 7]
-
-
 BonusType = Literal["bonusplus", "discount_club", "personal", "promo"]
 
 

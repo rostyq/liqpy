@@ -65,13 +65,13 @@ def validate_phone(value: Any, /, name: str = "phone") -> str:
 
 
 def validate_amount(value, /, name: str = DEFAULT_NAME) -> Decimal:
-    if isinstance(value, Decimal):
-        if value > 0:
+    if isinstance(value, (Decimal, int, str)):
+        if (value := Decimal(value)) > 0:
             return value
         else:
             raise ValueError(f"{name} must be positive")
     else:
-        raise TypeError(f"{name} must be a decimal number")
+        raise TypeError(f"{name} must be a decimal number, integer or numeric string")
 
 
 def validate_datetype(fn: Callable[[Any, str], Any]):
