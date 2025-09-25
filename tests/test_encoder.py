@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from datetime import datetime, date, UTC, timezone, timedelta
 from uuid import UUID
 from decimal import Decimal
@@ -12,6 +12,7 @@ from . import *
 
 if TYPE_CHECKING:
     from liqpy.api.encoder import LiqpayEncoder
+    from liqpy.types.request import LiqpayRequest
 
 
 @mark.parametrize("data", [b"", b"test"])
@@ -96,11 +97,15 @@ def test_encode_dae(encoder, data):
 @mark.parametrize(
     "encoder", [{"sort_keys": False, "separators": (", ", " : ")}], indirect=True
 )
-def test_checkout_example(monkeypatch, encoder: "LiqpayEncoder", payload, data, signature):
+def test_checkout_example(
+    monkeypatch, encoder: "LiqpayEncoder", payload, data, signature
+):
     from liqpy.api import sign as original_sign
 
     def patched_encode(obj: object) -> str:
-        return encoder.__class__.encode(encoder, obj).replace("{", "{ ").replace("}", " }")
+        return (
+            encoder.__class__.encode(encoder, obj).replace("{", "{ ").replace("}", " }")
+        )
 
     def patched_sign(data: bytes, key: bytes) -> bytes:
         # Add newlines to base64 data every 76 characters (like bash base64 command)
@@ -114,15 +119,22 @@ def test_checkout_example(monkeypatch, encoder: "LiqpayEncoder", payload, data, 
     monkeypatch.setattr("liqpy.api.encoder.sign", patched_sign)
     monkeypatch.setattr(encoder, "encode", patched_encode)
 
-    result = encoder.payload(
-        b"your_private_key",
+    private_key = b"your_private_key"
+    params = cast(
+        "LiqpayRequest",
         {
             "version": payload.pop("version"),
             "public_key": "your_public_key",
             "action": payload.pop("action"),
             **payload,
-        },  # type: ignore
+        },
     )
+
+    result = encoder.form(private_key, params)
+    assert result[0].decode() == data
+    assert result[1].decode() == signature
+
+    result = encoder.payload(private_key, params)
     qs = parse_qs(result.decode())
 
     assert qs["data"][0] == data

@@ -9,6 +9,7 @@ from pytest import mark
 from . import *
 
 if TYPE_CHECKING:
+    from liqpy.api.decoder import LiqpayDecoder
     from liqpy.types.response import LiqpayCallbackDict
 
 
@@ -72,8 +73,12 @@ def test_decode_status_example(decoder, example):
     assert isinstance(o.get("acq_id"), int)
     assert isinstance(o.get("mpi_eci"), int)
 
-    assert o.get("create_date") == datetime.fromtimestamp(example["create_date"] / 1e3, tz=UTC)
-    assert o.get("end_date") == datetime.fromtimestamp(example["end_date"] / 1e3, tz=UTC)
+    assert o.get("create_date") == datetime.fromtimestamp(
+        example["create_date"] / 1e3, tz=UTC
+    )
+    assert o.get("end_date") == datetime.fromtimestamp(
+        example["end_date"] / 1e3, tz=UTC
+    )
     assert o.get("ip") == IPv4Address(example["ip"])
     assert o.get("amount") == Decimal(str(example["amount"]))
     assert o.get("sender_commission") == Decimal(str(example["sender_commission"]))
@@ -84,3 +89,14 @@ def test_decode_status_example(decoder, example):
     assert o.get("commission_credit") == Decimal(str(example["commission_credit"]))
     assert o.get("sender_bonus") == Decimal(str(example["sender_bonus"]))
     assert o.get("amount_bonus") == Decimal(str(example["amount_bonus"]))
+
+
+@mark.parametrize(
+    "private_key,data,signature",
+    [(b"your_private_key", b"base64_post_string", b"tp+ZLmKm1/E83dIzUpx5ljcttP4=")],
+)
+def test_callback_example(
+    monkeypatch, decoder: "LiqpayDecoder", private_key, data, signature
+):
+    monkeypatch.setattr(decoder.__class__, "__call__", lambda _, s: s)
+    decoder.callback(data, signature, private_key)
