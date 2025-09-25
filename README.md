@@ -1,11 +1,11 @@
 # LiqPy
 
-LiqPy -- unofficial python library for [LiqPay API](https://www.liqpay.ua/documentation/api/home).
+LiqPy -- unofficial python library for [LiqPay API](https://www.liqpay.ua/doc).
 
 > _Is it **production ready**?_
 >
 > Short answer: Well, yes, but actually no.
-> 
+>
 > Long answer: It depends on what production readiness means for you.
 > Implementation still lacks some LiqPay's functionality and tests coverage,
 > but I, personally, use it in production.
@@ -19,103 +19,43 @@ pip install liqpy
 
 ## Basic Usage
 
-Create checkout link:
+Get `public_key` and `private_key` from LiqPay and create a checkout link:
 
 ```python
 from liqpy.client import Client
 
+# env variables for keys are LIQPAY_PUBLIC_KEY and LIQPAY_PRIVATE_KEY
 client = Client(public_key=..., private_key=...)
 
-client.checkout(
+checkout_link = client.checkout(
     action="pay",
     order_id=...,
     amount=1,
     currency="USD",
     description="Payment Example",
-    server_url=...
+    # set server_url for handling a callback
+    # server_url=...
 )
+print(checkout_link)
 ```
 
-Handle [callback from LiqPay](https://www.liqpay.ua/en/documentation/api/callback) after checkout on your server (`server_url`):
+## Handle Callback
+
+Handle [callback from LiqPay](https://www.liqpay.ua/en/doc/api/callback) after checkout on your server (`server_url`):
 
 ```python
-def handle_callback(data: str, signature: str):
+from urllib.parse import parse_qs
+from liqpy.api.exceptions import LiqPayRequestException
+
+# request body content type is application/x-www-form-urlencoded
+def handle_callback(body: str):
+    query = parse_qs(body)
+    data, signature = query["data"][0], query["signature"][0]
     try:
-        callback = client.callback(data, signature)
-        print(callback)
-    except AssertionError as e:
-        print("LiqPay callback verification failed.", e)
-```
-
-
-## Development
-
-Create Python environment (optional):
-
-```shell
-python -m env env
-```
-
-Install requirements:
-
-```shell
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
-
-### Setup credentials
-
-Get your `public_key` and `private_key` from LiqPay.
-
-Write keys to `.env` file as follows:
-
-```shell
-LIQPAY_PUBLIC_KEY=${public_key}
-LIQPAY_PRIVATE_KEY=${private_key}
-```
-
-
-### Local webhook handler
-
-Bind localhost port to the Internet:
-
-```shell
-ngrok http 8000
-```
-
-Look for the similar line in console:
-
-```
-Forwarding https://7kh6-111-111-111-111.ngrok-free.app -> http://localhost:8000 
-```
-
-Add server URL to `.env` file:
-
-```
-SERVER_URL=https://7kh6-111-111-111-111.ngrok-free.app
-```
-
-Start local webhook handler:
-
-```shell
-python -m tests.server
-```
-
-Now you can recieve callbacks after requesting LiqPay API.
-
-```python
-from os import environ
-from dotenv import load_env
-from liqpay.client import Client
-
-client = Client()
-
-client.request(
-    action=...,
-    order_id=...,
-    amount=...,
-    server_url=environ.get("SERVER_URL")
-)
+        result = client.callback(data, signature)
+        print(result)
+    except LiqPayRequestException:
+        print("LiqPay callback verification failed.")
 ```
 
 See [`readme.ipynb`](./readme.ipynb) for more examples.
