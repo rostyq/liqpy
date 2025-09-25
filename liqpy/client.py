@@ -218,28 +218,7 @@ class BaseClient:
 
     def callback(self, /, data: str, signature: str, *, verify: bool = True):
         """
-        Verify and decode the callback data
-
-        Example:
-        >>> client = Client()
-        >>> # get data and signature from webhook request body
-        >>> order_id = "a1a1a1a1"
-        >>> data, signature = client.encode(
-        ...     action="pay",
-        ...     amount=1,
-        ...     order_id=order_id,
-        ...     description="Test Encoding",
-        ...     currency="USD",
-        ... )
-        >>> # verify and decode data
-        >>> result = client.callback(data, signature)
-        >>> assert result["order_id"] == order_id
-        >>> assert result["action"] == "pay"
-        >>> assert result["amount"] == 1
-        >>> assert result["currency"] == "USD"
-        >>> assert result["description"] == "Test Encoding"
-
-        [Documentation](https://www.liqpay.ua/en/documentation/api/callback)
+        Verify and decode the callback data.
         """
         if verify:
             return self.decoder.callback(
