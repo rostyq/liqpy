@@ -477,18 +477,18 @@ class App:
         )
 
     @cached_property
-    def command(self) -> Command:
+    def command(self) -> Command | None:
         return self.args.command
 
     def _public_key(self) -> str | None:
-        return self.args.public_key or getenv("LIQPAY_PUBLIC_KEY")
+        return getattr(self.args, "public_key", None) or getenv("LIQPAY_PUBLIC_KEY")
 
     @cached_property
     def public_key(self) -> str:
         return pk if (pk := self._public_key()) else self._err_required("PUBLIC_KEY")
 
     def _private_key(self) -> str | None:
-        return self.args.private_key or getenv("LIQPAY_PRIVATE_KEY")
+        return getattr(self.args, "private_key", None) or getenv("LIQPAY_PRIVATE_KEY")
 
     @cached_property
     def private_key(self) -> str:
@@ -594,6 +594,9 @@ class App:
             case "reports":
                 with self.client() as client:
                     yield from self._run_reports(client)
+            
+            case None:
+                self.ap.error("no command specified")
 
             case _:
                 with self.client() as client:
