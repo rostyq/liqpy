@@ -143,7 +143,7 @@ class BaseClient:
         ):
             raise exception(response=response)
 
-        data: dict = self.decoder.decode(response.text)
+        data: dict[str, Any] = self.decoder.decode(response.text)
 
         result: Optional[Literal["ok", "error"]] = data.pop("result", None)
         status = data.get("status")
